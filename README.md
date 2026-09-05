@@ -15,8 +15,13 @@ research and provides a separate build brief and handoff for each fresh agent
 run. Phases 01–03 now provide a pure scene engine, two original rulesets and
 in-memory World/Zone/Session authority. See the
 [batch handoff](docs/implementation/03-zone-sessions/handoff.md) for verification.
-Persistence and native GM workflows are next; there are no gameplay routes yet,
-and the ephemeral engine must not be used for real adventures.
+The next local batch adds [durable scoped state](docs/implementation/04-persistence/handoff.md)
+and the [native GM workbench](docs/implementation/05-gm-workspace/handoff.md).
+Visit `/worlds` after signing in to curate places, NPCs, items and notes, manage
+campaigns, and prepare/pause/resume Experiences across gatherings. Phase 05's
+actual browser usability gate is still open; full time reconciliation, AI and
+player play surfaces remain later phases. Never use the ephemeral fixture mode
+for real adventures.
 
 The [living-history contract](docs/implementation/living-history-and-context.md)
 connects generated history with ongoing play: character choices and companions

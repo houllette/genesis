@@ -1,8 +1,10 @@
 defmodule Genesis.Engine.Zone do
-  @moduledoc "Single ephemeral writer per scope/zone. Receipts and proposals are bounded and never evicted for reuse."
+  @moduledoc "Single scoped writer. Persistent mode commits snapshots, receipts and effects before acknowledgement."
   use GenServer, restart: :temporary
   alias Genesis.Core.{Scene, Scope, State}
   alias Genesis.Engine.{Draws, World}
+  alias Genesis.Persistence.{Actions, Control, Curation, Snapshot, Snapshots}
+  alias Genesis.Repo
   alias Genesis.Time.Clock
 
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
@@ -38,7 +40,9 @@ defmodule Genesis.Engine.Zone do
        disconnected: MapSet.new(),
        receipts: %{},
        proposals: %{},
-       limit: Keyword.get(opts, :receipt_limit, 1000)
+       limit: Keyword.get(opts, :receipt_limit, 1000),
+       storage: Keyword.get(opts, :storage),
+       storage_opts: Keyword.take(opts, [:clock, :fault])
      }}
   end
 
@@ -69,10 +73,54 @@ defmodule Genesis.Engine.Zone do
 
   def handle_call(:detach, {caller, _tag}, state), do: {:reply, :ok, unbind(state, caller)}
 
+  def handle_call(:install_committed, {world, _tag}, %{world: world, storage: storage} = state)
+      when not is_nil(storage) do
+    {:ok, state} = refresh(state)
+    {:reply, :ok, notify(state)}
+  end
+
+  def handle_call(
+        {:control, scope, action, revision, request},
+        {world, _tag},
+        %{world: world, storage: storage} = state
+      )
+      when not is_nil(storage) do
+    with {:ok, state} <- refresh(state),
+         {:ok, changed} <-
+           Control.change(
+             scope,
+             storage.snapshot_id,
+             state.scene,
+             action,
+             revision,
+             request,
+             state.storage_opts
+           ) do
+      {:reply, {:ok, changed.result}, notify(%{state | scene: changed.scene})}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call(
+        {:curate, scope, operation},
+        {world, _tag},
+        %{world: world, storage: storage} = state
+      )
+      when not is_nil(storage) do
+    with {:ok, state} <- refresh(state),
+         {:ok, changed} <- Curation.edit(scope, storage.snapshot_id, state.scene, operation) do
+      {:reply, {:ok, changed.result}, notify(%{state | scene: changed.scene})}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
   def handle_call(request, {caller, _tag}, state) do
     with %{token: token} <- state.bindings[caller],
          {:ok, principal} <-
-           World.authorize(state.world, token, state.scene.scope, state.scene.zone_id) do
+           World.authorize(state.world, token, state.scene.scope, state.scene.zone_id),
+         {:ok, state} <- refresh(state) do
       state = sync_status(state, principal.status)
       authorized_call(request, caller, principal, state)
     else
@@ -145,6 +193,18 @@ defmodule Genesis.Engine.Zone do
       else: {:reply, {:error, :invalid_request}, state}
   end
 
+  defp authorized_call({:step, plan, index, payload}, _caller, principal, state) do
+    with true <-
+           not is_nil(state.storage) and Scope.id?(plan) and is_integer(index) and index in 0..7,
+         true <- valid_step_payload?(payload),
+         :ok <- Actions.previous_step(principal, plan, index) do
+      command(state, principal, Actions.step_id(plan, index), {:step, plan, index, payload})
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :invalid_plan}, state}
+    end
+  end
+
   defp authorized_call(_request, _caller, _principal, state),
     do: {:reply, {:error, :invalid_request}, state}
 
@@ -165,6 +225,14 @@ defmodule Genesis.Engine.Zone do
 
       other ->
         {:reply, other, state}
+    end
+  end
+
+  defp command(%{storage: storage} = state, principal, id, payload) when not is_nil(storage) do
+    case Actions.receipt(principal, id, payload) do
+      {:ok, receipt} -> {:reply, receipt_reply(state, principal, receipt), state}
+      :new -> execute(state, principal, id, payload, {principal.id, id})
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -207,22 +275,41 @@ defmodule Genesis.Engine.Zone do
            draws: draws,
            recorded_at: readings.utc
          },
-         {:ok, next, effects} <- Scene.confirm(state.scene, proposal, inputs) do
-      receipt = %{
-        id: id,
-        actor_id: principal.actor_id,
-        campaign_id: principal.campaign_id,
-        payload: payload,
-        effects: effects,
-        revision: next.revision
-      }
-
-      state = %{state | scene: next, receipts: Map.put(state.receipts, key, receipt)} |> notify()
-      {:reply, receipt_reply(state, principal, receipt), state}
+         {:ok, next, effects} <- Scene.confirm(state.scene, proposal, inputs),
+         receipt = %{
+           id: id,
+           actor_id: principal.actor_id,
+           campaign_id: principal.campaign_id,
+           payload: payload,
+           effects: effects,
+           revision: next.revision
+         },
+         {:ok, receipt} <- persist(state, principal, next, receipt) do
+      Actions.fault(state.storage_opts, :after_commit)
+      receipts = if state.storage, do: state.receipts, else: Map.put(state.receipts, key, receipt)
+      state = %{state | scene: next, receipts: receipts}
+      Actions.fault(state.storage_opts, :after_install)
+      {:reply, receipt_reply(state, principal, receipt), notify(state)}
     else
       false -> {:reply, {:error, :stale_proposal}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
       {:clarify, _field} -> {:reply, {:error, :invalid_request}, state}
+    end
+  end
+
+  defp persist(%{storage: nil}, _principal, _next, receipt), do: {:ok, receipt}
+
+  defp persist(state, principal, next, receipt),
+    do: Actions.commit(principal, state.scene, next, receipt, state.storage_opts)
+
+  defp refresh(%{storage: nil} = state), do: {:ok, state}
+
+  defp refresh(state) do
+    with %Snapshot{} = snapshot <- Repo.get(Snapshot, state.storage.snapshot_id),
+         {:ok, scene} <- Snapshots.load(snapshot) do
+      {:ok, %{state | scene: scene}}
+    else
+      _ -> {:error, :recovery_failed}
     end
   end
 
@@ -238,6 +325,9 @@ defmodule Genesis.Engine.Zone do
         Scene.propose(state.scene, principal.actor_id, intent, "direct")
     end
   end
+
+  defp resolve_proposal(state, principal, {:step, _plan, _index, payload}),
+    do: resolve_proposal(state, principal, payload)
 
   defp resolve_proposal(state, principal, {:confirm, id}) do
     case state.proposals[proposal_key(principal, id)] do
@@ -262,7 +352,7 @@ defmodule Genesis.Engine.Zone do
        revision: receipt.revision,
        effects: Scene.effects_for(receipt.effects, principal),
        view: view,
-       durability: :ephemeral
+       durability: if(state.storage, do: :durable, else: :ephemeral)
      }}
   end
 
@@ -283,6 +373,13 @@ defmodule Genesis.Engine.Zone do
         Scope.id?(id) and is_integer(revision) and revision >= 0 and valid_intent?(intent, false)
 
   defp valid_request?(_request), do: false
+
+  defp valid_step_payload?({:confirm, id}), do: Scope.id?(id)
+
+  defp valid_step_payload?({:direct, revision, intent}),
+    do: valid_request?(%{id: "step", revision: revision, intent: intent})
+
+  defp valid_step_payload?(_payload), do: false
 
   defp valid_intent?(%{type: type, target_id: target} = intent, _clarification),
     do: map_size(intent) == 2 and Scope.id?(type) and Scope.id?(target)

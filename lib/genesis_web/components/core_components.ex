@@ -248,7 +248,7 @@ defmodule GenesisWeb.CoreComponents do
         <select
           id={@id}
           name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
+          class={[@class || "workspace-input", @errors != [] && (@error_class || "select-error")]}
           multiple={@multiple}
           {@rest}
         >
@@ -270,7 +270,7 @@ defmodule GenesisWeb.CoreComponents do
           id={@id}
           name={@name}
           class={[
-            @class || "w-full textarea",
+            @class || "workspace-input",
             @errors != [] && (@error_class || "textarea-error")
           ]}
           {@rest}
@@ -293,7 +293,7 @@ defmodule GenesisWeb.CoreComponents do
           id={@id}
           value={Form.normalize_value(@type, @value)}
           class={[
-            @class || "w-full input",
+            @class || "workspace-input",
             @errors != [] && (@error_class || "input-error")
           ]}
           {@rest}

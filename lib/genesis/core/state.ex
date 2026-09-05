@@ -7,6 +7,8 @@ defmodule Genesis.Core.State do
     :zone_id,
     :time,
     :rules_ref,
+    name: nil,
+    description: "",
     actors: %{},
     items: %{},
     knowledge: %{},
@@ -23,6 +25,8 @@ defmodule Genesis.Core.State do
           zone_id: String.t(),
           time: Genesis.Core.FictionalTime.t(),
           rules_ref: term(),
+          name: String.t() | nil,
+          description: String.t(),
           actors: map(),
           items: map(),
           knowledge: map(),
@@ -61,11 +65,50 @@ defmodule Genesis.Core.State do
 
   def new(_attrs), do: {:error, :invalid_state}
 
+  @doc "Validates a decoded checkpoint without resetting its revisions or elapsed time."
+  @spec restore(value :: term()) :: {:ok, t()} | {:error, :invalid_state}
+  def restore(%__MODULE__{} = state) do
+    with true <- valid_saved_header?(state),
+         true <- Enum.all?([state.actors, state.items, state.knowledge], &valid_index?/1),
+         true <-
+           Enum.all?(state.actors, fn {_id, actor} ->
+             match?(%Actor{}, actor) and revision?(actor.revision)
+           end),
+         attrs = state |> Map.from_struct() |> Map.drop([:revision, :elapsed, :status, :events]),
+         attrs = Map.put(attrs, :actors, Enum.map(Map.values(state.actors), &%{&1 | revision: 0})),
+         attrs = Map.put(attrs, :items, Map.values(state.items)),
+         attrs = Map.put(attrs, :knowledge, Map.values(state.knowledge)),
+         {:ok, _validated} <- new(attrs) do
+      {:ok, state}
+    else
+      _ -> {:error, :invalid_state}
+    end
+  end
+
+  def restore(_value), do: {:error, :invalid_state}
+
+  defp valid_saved_header?(state),
+    do:
+      revision?(state.revision) and revision?(state.elapsed) and
+        state.status in [:active, :paused] and is_list(state.events) and
+        length(state.events) <= 2000 and
+        Enum.all?(
+          state.events,
+          &(is_map(&1) and Scope.id?(Map.get(&1, :id)) and Map.get(&1, :scope) == state.scope)
+        )
+
+  defp revision?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000
+
+  defp valid_index?(values) when is_map(values),
+    do: Enum.all?(values, fn {id, value} -> is_map(value) and Map.get(value, :id) == id end)
+
+  defp valid_index?(_values), do: false
+
   @doc "Projects before delivery. Non-GM output excludes authoritative sources and private actor fields."
   @spec view(state :: t(), viewer :: map()) :: {:ok, map()} | {:error, :unavailable}
   def view(state, viewer) do
     if viewer[:role] in [:gm, :player, :spectator] and
-         (viewer[:role] == :gm or Map.has_key?(state.actors, viewer[:actor_id])) do
+         (viewer[:role] in [:gm, :spectator] or Map.has_key?(state.actors, viewer[:actor_id])) do
       actors =
         state.actors |> Map.values() |> Enum.filter(&Audience.permits?(&1.audience, viewer))
 
@@ -79,15 +122,14 @@ defmodule Genesis.Core.State do
        %{
          scope: state.scope,
          zone_id: state.zone_id,
+         name: state.name || state.zone_id,
+         description: state.description,
          time: state.time,
          elapsed: state.elapsed,
          revision: state.revision,
          status: state.status,
          actors: actors |> Enum.map(&actor_view(&1, viewer)) |> Enum.sort_by(& &1.id),
-         items:
-           items
-           |> Enum.map(&Map.take(&1, [:id, :name, :owner, :quantity]))
-           |> Enum.sort_by(& &1.id),
+         items: items |> Enum.map(&item_view(&1, viewer)) |> Enum.sort_by(& &1.id),
          knowledge: knowledge |> Enum.map(&knowledge_view(&1, viewer)) |> Enum.sort_by(& &1.id)
        }}
     else
@@ -116,6 +158,8 @@ defmodule Genesis.Core.State do
       :zone_id,
       :time,
       :rules_ref,
+      :name,
+      :description,
       :actors,
       :items,
       :knowledge,
@@ -125,7 +169,15 @@ defmodule Genesis.Core.State do
 
     Enum.all?(Map.keys(attrs), &(&1 in allowed)) and Scope.valid?(scope) and Scope.id?(zone) and
       FictionalTime.valid?(time) and time.world_id == scope.world_id and
-      rules?(attrs)
+      rules?(attrs) and zone_metadata?(attrs)
+  end
+
+  defp zone_metadata?(attrs) do
+    name = Map.get(attrs, :name)
+    description = Map.get(attrs, :description, "")
+
+    (is_nil(name) or Scope.id?(name)) and is_binary(description) and
+      byte_size(description) <= 4000 and String.valid?(description)
   end
 
   defp rules?(attrs),
@@ -156,10 +208,22 @@ defmodule Genesis.Core.State do
     Scope.id?(actor.name) and actor.kind in [:pc, :npc] and actor.revision == 0 and
       is_boolean(actor.alive) and is_boolean(actor.retired) and Audience.valid?(actor.audience) and
       valid_traits?(actor.traits) and numeric_map?(actor.skills) and
-      numeric_map?(actor.resources)
+      actor_details?(actor)
   end
 
   defp valid_actor?(_actor), do: false
+
+  defp actor_details?(actor), do: numeric_map?(actor.resources) and persona?(actor.persona)
+
+  defp persona?(persona) when persona == %{}, do: true
+
+  defp persona?(
+         %{"version" => 1, "temperament" => temperament, "goal" => goal, "agency" => "dormant"} =
+           persona
+       ),
+       do: map_size(persona) == 4 and Scope.id?(temperament) and Scope.id?(goal)
+
+  defp persona?(_persona), do: false
 
   defp valid_traits?(traits) when is_list(traits) and length(traits) <= 32,
     do: Enum.all?(traits, &Scope.id?/1) and Enum.uniq(traits) == traits
@@ -249,6 +313,8 @@ defmodule Genesis.Core.State do
     do: Map.take(actor, [:id, :name, :kind, :traits, :skills, :resources, :alive, :retired])
 
   defp actor_view(actor, _viewer), do: Map.take(actor, [:id, :name, :kind, :alive])
+  defp item_view(item, %{role: :gm}), do: Map.from_struct(item)
+  defp item_view(item, _viewer), do: Map.take(item, [:id, :name, :owner, :quantity])
   defp knowledge_view(record, %{role: :gm}), do: Map.from_struct(record)
 
   defp knowledge_view(record, _viewer),

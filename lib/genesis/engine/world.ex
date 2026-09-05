@@ -1,9 +1,10 @@
 defmodule Genesis.Engine.World do
-  @moduledoc "Ephemeral world claims and trusted grants. Phase 04 must persist these before real play."
+  @moduledoc "World ownership, scoped grants and orchestration; persistent mode revalidates durable membership."
   use GenServer
   alias Genesis.Core.{Scope, State}
-  alias Genesis.Engine.{Session, Zone}
+  alias Genesis.Engine.{DurableWorld, Session, Zone}
   alias Genesis.Engine.Supervisor, as: Lookup
+  alias Genesis.Persistence.Authority
 
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
   def start_link(opts),
@@ -52,8 +53,14 @@ defmodule Genesis.Engine.World do
   @spec identity(world :: GenServer.server()) :: {String.t(), non_neg_integer()}
   def identity(world), do: GenServer.call(world, :identity)
 
+  @spec mode(world :: GenServer.server()) :: :postgres | nil
+  def mode(world), do: GenServer.call(world, :mode)
+
   @impl true
   def init(opts) do
+    if Keyword.get(opts, :storage) == :postgres,
+      do: Phoenix.PubSub.subscribe(Genesis.PubSub, "world:" <> Keyword.fetch!(opts, :world_id))
+
     if observer = Keyword.get(opts, :observer),
       do: send(observer, {:genesis_world_started, self()})
 
@@ -64,8 +71,12 @@ defmodule Genesis.Engine.World do
        generation: Keyword.fetch!(opts, :generation),
        registry: Keyword.fetch!(opts, :registry),
        workers: Keyword.fetch!(opts, :workers),
+       storage: Keyword.get(opts, :storage),
+       zone_opts: Keyword.get(opts, :zone_opts, []),
+       previews: %{},
        zones: %{},
        grants: %{},
+       sessions: %{},
        claims: %{},
        statuses: %{},
        window: nil
@@ -75,6 +86,11 @@ defmodule Genesis.Engine.World do
   @impl true
   def handle_call(:identity, _from, state),
     do: {:reply, {state.world_id, state.generation}, state}
+
+  def handle_call(:mode, _from, state), do: {:reply, state.storage, state}
+
+  def handle_call({:durable, scope, command}, {caller, _tag}, %{storage: :postgres} = state),
+    do: DurableWorld.call(state, scope, command, caller)
 
   def handle_call({:authorize, token, scope, zone}, _from, state),
     do: {:reply, authorization(state, token, scope, zone), state}
@@ -94,6 +110,9 @@ defmodule Genesis.Engine.World do
     end
   end
 
+  def handle_call(_request, _from, %{storage: :postgres} = state),
+    do: {:reply, {:error, :unsupported_operation}, state}
+
   def handle_call(request, {caller, _tag}, %{owner: caller} = state),
     do: owner_call(request, state)
 
@@ -106,7 +125,29 @@ defmodule Genesis.Engine.World do
         {key, if(entry.monitor == monitor, do: %{entry | pid: nil}, else: entry)}
       end)
 
-    {:noreply, %{state | zones: zones}}
+    {token, sessions} = Map.pop(state.sessions, monitor)
+
+    {:noreply,
+     %{state | zones: zones, sessions: sessions, grants: Map.delete(state.grants, token)}}
+  end
+
+  def handle_info(
+        {:world_changed, world, _cursor},
+        %{world_id: world, storage: :postgres} = state
+      ) do
+    grants =
+      Map.reject(state.grants, fn {token, principal} ->
+        case Authority.current(principal) do
+          {:ok, _current} ->
+            false
+
+          _ ->
+            notify_zones(state, {:revoked, token})
+            true
+        end
+      end)
+
+    {:noreply, %{state | grants: grants}}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -247,6 +288,13 @@ defmodule Genesis.Engine.World do
 
       _ ->
         false
+    end
+  end
+
+  defp authorization(%{storage: :postgres} = state, token, scope, zone) do
+    case state.grants[token] do
+      %{scope: ^scope, zone_id: ^zone} = principal -> Authority.current(principal)
+      _ -> {:error, :unauthorized}
     end
   end
 

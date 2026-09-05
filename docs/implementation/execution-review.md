@@ -84,6 +84,25 @@ it cannot revoke something a human already read.
 
 ## Bounds and evidence
 
+The 04–05 implementation review adds these concrete translation guards:
+
+- Commit order is allocated under a world-row lock, not a sequence reservation
+  or UTC timestamp; a late commit cannot fall behind a delivered history cursor.
+- Receipt replay is still an authorization boundary. Stable metadata retries
+  acknowledge the earlier command without reapplying it over a newer role or
+  character assignment. Browser forms refresh the current read model afterward.
+- Public preview is a state-layer projection, not a GM DTO with hidden controls.
+  Notes linked to invisible entities are hidden too. NPC persona, an authored
+  belief and an established engine fact remain distinct records and meanings.
+- New authoring during a window is a Draft, not an edit to its pinned canonical
+  base or a back door into Working state. Future draft promotion needs a fresh
+  conflict review; saving a draft does not imply it has been incorporated.
+- An Experience's real gathering date is labelled UTC and never advances its
+  fictional coordinate. Profiles and dormant NPC agency imply no simulation or
+  active AI. No complete-incorporation button disguises the phase-04 proof.
+- LiveView acceptance tests exercise server-rendered forms, not browser layout,
+  keyboard focus or human usability. Phase 05 retains that explicit browser gate.
+
 Use integer fictional seconds initially; calendar-relative expressions wait for
 08. Zero-duration events stay points. Due occurrence keys include schedule
 identity/version and coordinate, independently of execution scope or batch.

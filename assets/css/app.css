@@ -2,6 +2,7 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
+@import "./workspace.css";
 @import "phoenix-colocated/genesis/colocated.css";
 @source "../css";
 @source "../js";

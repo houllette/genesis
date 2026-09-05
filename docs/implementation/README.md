@@ -29,8 +29,11 @@ Phases 01–03 are implemented as the first bounded batch: pure scene/knowledge/
 two original rulesets, and ephemeral World/Zone/Session authority. See the
 [batch handoff](03-zone-sessions/handoff.md) for exact verification and remaining
 limits. Phase 00's [historical handoff](00-baseline/handoff.md) remains historical;
-its account/auth/page regressions were refreshed. Phases 04–16 are not started.
-There is no durable gameplay or native game UI yet. All 17 folders have briefs;
+its account/auth/page regressions were refreshed. The next local batch implements
+[04 persistence](04-persistence/handoff.md) and [05 native GM authoring](05-gm-workspace/handoff.md).
+Phase 05 remains unqualified until actual browser visual/keyboard/narrow-layout
+QA is available; its server-driven workflow tests are not a substitute.
+Phases 06–16 are not started. All 17 folders have briefs;
 unstarted handoffs remain explicit templates. The phase order places GM workspace
 in 05, Lemieux authoring in 10,
 combined player play is 11, the living pilot is 12, and long history is 14.

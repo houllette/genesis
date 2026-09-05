@@ -22,6 +22,8 @@ defmodule GenesisWeb.UserSessionControllerTest do
 
       # Now do a logged in request and assert on the menu
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/worlds"
+      conn = get(conn, ~p"/worlds")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
@@ -86,6 +88,8 @@ defmodule GenesisWeb.UserSessionControllerTest do
 
       # Now do a logged in request and assert on the menu
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/worlds"
+      conn = get(conn, ~p"/worlds")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"
@@ -110,6 +114,8 @@ defmodule GenesisWeb.UserSessionControllerTest do
 
       # Now do a logged in request and assert on the menu
       conn = get(conn, ~p"/")
+      assert redirected_to(conn) == ~p"/worlds"
+      conn = get(conn, ~p"/worlds")
       response = html_response(conn, 200)
       assert response =~ user.email
       assert response =~ ~p"/users/settings"

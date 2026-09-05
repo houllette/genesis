@@ -19,6 +19,27 @@ defmodule Genesis.Engine.Session do
   def confirm(session, request_id, proposal_id),
     do: GenServer.call(session, {:confirm, request_id, proposal_id}, 5000)
 
+  @spec submit_step(
+          session :: pid(),
+          plan_id :: String.t(),
+          index :: non_neg_integer(),
+          request :: map()
+        ) :: term()
+  def submit_step(session, plan, index, %{revision: revision, intent: intent} = request)
+      when map_size(request) == 2,
+      do: GenServer.call(session, {:step, plan, index, {:direct, revision, intent}}, 5000)
+
+  def submit_step(_session, _plan, _index, _request), do: {:error, :invalid_request}
+
+  @spec confirm_step(
+          session :: pid(),
+          plan_id :: String.t(),
+          index :: non_neg_integer(),
+          proposal_id :: String.t()
+        ) :: term()
+  def confirm_step(session, plan, index, proposal),
+    do: GenServer.call(session, {:step, plan, index, {:confirm, proposal}}, 5000)
+
   @spec detach(session :: pid()) :: :ok | {:error, atom()}
   def detach(session), do: GenServer.call(session, :detach)
 
@@ -56,11 +77,23 @@ defmodule Genesis.Engine.Session do
   def handle_call(request, {caller, _tag}, %{consumer: caller} = state) do
     reply =
       case request do
-        :view -> Zone.view(state.zone)
-        {:submit, payload} -> Zone.submit(state.zone, payload)
-        {:propose, id, intent} -> Zone.propose(state.zone, id, intent)
-        {:confirm, id, proposal} -> Zone.confirm(state.zone, id, proposal)
-        _ -> {:error, :unsupported_request}
+        :view ->
+          Zone.view(state.zone)
+
+        {:submit, payload} ->
+          Zone.submit(state.zone, payload)
+
+        {:propose, id, intent} ->
+          Zone.propose(state.zone, id, intent)
+
+        {:confirm, id, proposal} ->
+          Zone.confirm(state.zone, id, proposal)
+
+        {:step, plan, index, payload} ->
+          GenServer.call(state.zone, {:step, plan, index, payload}, 3000)
+
+        _ ->
+          {:error, :unsupported_request}
       end
 
     {:reply, reply, %{state | pending: false}}

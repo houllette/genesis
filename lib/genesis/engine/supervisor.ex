@@ -58,7 +58,12 @@ defmodule Genesis.Engine.Supervisor do
 
   defp existing_world(registry, opts) do
     world = GenServer.whereis(world_name(registry, opts))
+    verify_world(world, opts)
+  end
 
+  defp verify_world(nil, _opts), do: {:error, :restarting}
+
+  defp verify_world(world, opts) do
     if World.identity(world) ==
          {Keyword.fetch!(opts, :world_id), Keyword.fetch!(opts, :generation)},
        do: {:ok, world},

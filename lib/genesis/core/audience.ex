@@ -12,6 +12,7 @@ defmodule Genesis.Core.Audience do
 
   @spec permits?(audience :: term(), viewer :: map()) :: boolean()
   def permits?(_audience, %{role: :gm}), do: true
+  def permits?(:public, %{role: :spectator}), do: true
   def permits?(:public, %{actor_id: actor}) when is_binary(actor), do: true
   def permits?({:actors, ids}, %{actor_id: actor}), do: actor in ids
   def permits?(_audience, _viewer), do: false

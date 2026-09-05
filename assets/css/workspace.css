@@ -1,0 +1,39 @@
+/* Native workspace primitives; auth's inherited theme remains separate. */
+body { background: #f7f6f2; color: #292d28; }
+.workspace-hero { padding: 1rem 0 3rem; max-width: 48rem; }
+.eyebrow { color: #607063; font-size: .68rem; line-height: 1.7; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; margin-bottom: .65rem; }
+.display-title { font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.3rem, 5vw, 3.8rem); letter-spacing: -.045em; line-height: 1.12; font-weight: 400; overflow-wrap: anywhere; }
+.lede { color: #677066; font-size: 1.08rem; line-height: 1.8; margin-top: 1.25rem; max-width: 39rem; }
+.section-heading { font-size: 1.15rem; font-weight: 650; letter-spacing: -.02em; margin-bottom: 1.2rem; }
+.workspace-panel, .workspace-card { background: #fffefa; border: 1px solid #dedfd5; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 3px 16px -13px #263c28; min-width: 0; }
+.workspace-card { position: relative; transition: border-color .18s, box-shadow .18s; }
+.workspace-card:has(.stretched-link):hover { border-color: #8caa91; box-shadow: 0 10px 25px -18px #263c28; }
+.stretched-link::after { position: absolute; inset: 0; content: ""; border-radius: 1rem; }
+.helper-text { font-size: .8rem; color: #626b61; line-height: 1.65; }
+.empty-state { border: 1px dashed #cdd2c6; border-radius: .9rem; padding: 2rem; color: #697065; font-size: .92rem; line-height: 1.8; }
+.workspace-input { display: block; width: 100%; min-width: 0; min-height: 2.7rem; border: 1px solid #c7cec2; border-radius: .55rem; padding: .65rem .75rem; background: #fff; color: #26332a; font-size: .88rem; line-height: 1.4; transition: border-color .18s, box-shadow .18s; }
+select.workspace-input { appearance: auto; }
+select.workspace-input[multiple] { min-height: 5rem; }
+textarea.workspace-input { min-height: 6rem; resize: vertical; }
+.workspace-input:focus { outline: 2px solid #759881; outline-offset: 2px; border-color: #436e52; }
+.fieldset .label { color: #485448; display: block; font-size: .8rem; font-weight: 550; }
+.primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: .6rem; min-height: 2.75rem; border-radius: .6rem; padding: .7rem 1rem; font-size: .85rem; font-weight: 600; cursor: pointer; transition: background .18s, transform .18s; }
+.primary-button { background: #214d36; color: #fff; border: 1px solid #214d36; }
+.primary-button:hover { background: #173e29; transform: translateY(-1px); }
+.secondary-button { color: #31543b; background: #fffefa; border: 1px solid #c6cfbf; }
+.secondary-button:hover { background: #edf1e8; }
+button:disabled { opacity: .55; cursor: wait; transform: none; }
+.text-link { color: #2c5f40; text-underline-offset: 4px; cursor: pointer; }
+.text-link:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid #426a50; outline-offset: 4px; border-radius: .2rem; }
+.badge-published, .badge-working, .badge-draft, .status-label { display: inline-block; padding: .25rem .55rem; border-radius: .4rem; font-size: .66rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.badge-published { background: #e5eddd; color: #3b5a35; }
+.badge-working { background: #e2eaf1; color: #365b76; }
+.badge-draft { background: #f0e4c9; color: #78591c; }
+.status-label { background: #f0f0e9; color: #5f6859; }
+.status-card { border-left: 2px solid #a1b894; padding-left: 1rem; }
+.notice { background: #f1efdf; border: 1px solid #dedac1; border-radius: .75rem; padding: 1.15rem; color: #615934; line-height: 1.7; font-size: .9rem; }
+.skip-link { position: fixed; top: -5rem; left: 1rem; z-index: 100; padding: .8rem 1rem; color: #fff; background: #214d36; border-radius: .4rem; }
+.skip-link:focus { top: .7rem; }
+@media (max-width: 640px) { .workspace-panel, .workspace-card { padding: 1.2rem; } .workspace-hero { padding-top: 0; padding-bottom: 2rem; } }
+@media (prefers-reduced-motion: reduce) { .workspace-card, .primary-button, .secondary-button, .workspace-input { transition: none; } }
