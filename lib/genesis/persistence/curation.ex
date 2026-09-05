@@ -92,7 +92,17 @@ defmodule Genesis.Persistence.Curation do
     else
       {:ok, transition} = Transition.between(before, next)
       snapshot = Snapshots.save!(snapshot, next)
-      event = record!(world, user, snapshot, "record_curated", transition)
+
+      event =
+        record!(
+          world,
+          user,
+          snapshot,
+          "record_curated",
+          transition,
+          accounting(before, next, id, attrs)
+        )
+
       Snapshots.checkpoint!(snapshot, event.cursor)
       {next, %{"status" => "published", "entity_id" => id, "zone_id" => next.zone_id}}
     end
@@ -105,9 +115,11 @@ defmodule Genesis.Persistence.Curation do
     if Map.has_key?(state.actors, id), do: :ok, else: {:error, :unavailable}
   end
 
-  defp existing_reference(state, id, %{"kind" => "item"}) do
+  defp existing_reference(state, id, %{"kind" => kind}) when kind in ["item", "stock"] do
     if Map.has_key?(state.items, id), do: :ok, else: {:error, :unavailable}
   end
+
+  defp existing_reference(%{settlement: %{"id" => id}}, id, %{"kind" => "settlement"}), do: :ok
 
   defp existing_reference(_state, _id, _attrs), do: {:error, :unavailable}
 
@@ -175,7 +187,7 @@ defmodule Genesis.Persistence.Curation do
     %{"status" => "draft", "entity_id" => id, "zone_id" => zone, "draft_id" => draft.id}
   end
 
-  defp record!(world, user, snapshot, type, transition) do
+  defp record!(world, user, snapshot, type, transition, accounting \\ %{}) do
     world = Tx.update!(world, %{revision: world.revision + 1})
 
     Tx.event!(world, %{
@@ -185,9 +197,30 @@ defmodule Genesis.Persistence.Curation do
       principal_id: user,
       audience_users: [user],
       transition: transition,
-      event: Codec.dump!(%{type: type, result: %{"zone_id" => snapshot.zone_id}})
+      event:
+        Codec.dump!(%{
+          type: type,
+          result: %{"zone_id" => snapshot.zone_id},
+          accounting: accounting
+        })
     })
   end
+
+  defp accounting(before, next, id, %{"kind" => "stock", "reason" => reason}) do
+    old = if before.items[id], do: before.items[id].quantity, else: 0
+    item = next.items[id]
+
+    %{
+      "version" => 1,
+      "kind" => "authorized_source_sink",
+      "commodity" => item.commodity,
+      "delta" => item.quantity - old,
+      "lot_id" => id,
+      "reason" => reason
+    }
+  end
+
+  defp accounting(_before, _next, _id, _attrs), do: %{}
 
   @spec window_open?(world_id :: String.t()) :: boolean()
   def window_open?(world),

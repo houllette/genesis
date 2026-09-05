@@ -1,6 +1,7 @@
 defmodule Genesis.Systems.Bundle do
   @moduledoc "Closed, versioned JSON bundles. Digests hash canonical sorted-key JSON, not file whitespace."
   alias Genesis.Core.{Check, Formula, Scope}
+  alias Genesis.Systems.LocalRules
 
   @spec validate(data :: term()) :: {:ok, map()} | {:error, :invalid_bundle}
   def validate(data) when is_map(data) do
@@ -10,6 +11,7 @@ defmodule Genesis.Systems.Bundle do
          true <- resources?(data["resources"], defaults),
          true <- inventory?(data),
          true <- capabilities?(data["capabilities"]),
+         true <- local?(data),
          true <- actions?(data),
          true <- context?(data),
          true <- progression?(data["progression"]),
@@ -48,7 +50,8 @@ defmodule Genesis.Systems.Bundle do
     do:
       exact?(
         data,
-        ~w(format id version attributes resources slots items traits skills actions context_rules capabilities progression)
+        ~w(format id version attributes resources slots items traits skills actions context_rules capabilities progression) ++
+          if(Map.has_key?(data, "local"), do: ["local"], else: [])
       ) and
         data["format"] == 1 and Scope.id?(data["id"]) and integer?(data["version"], 1..100_000)
 
@@ -95,11 +98,24 @@ defmodule Genesis.Systems.Bundle do
 
   defp capability_shape?(name, spec),
     do:
-      name in ~w(scene checks commerce lore) and
+      name in ~w(scene checks commerce lore economy production institutions survival) and
         exact?(spec, ~w(status enabled requires)) and
         spec["status"] in ~w(playable record_only deferred) and
         is_boolean(spec["enabled"]) and ids?(spec["requires"]) and
-        (not spec["enabled"] or (spec["status"] == "playable" and name in ~w(scene checks)))
+        (not spec["enabled"] or (spec["status"] == "playable" and name != "lore"))
+
+  defp local?(%{"local" => rules} = data) do
+    LocalRules.compatible?(rules, data["resources"]) and
+      Enum.all?(~w(economy commerce production institutions survival), fn name ->
+        match?(%{"status" => "playable", "enabled" => true}, data["capabilities"][name])
+      end)
+  end
+
+  defp local?(data),
+    do:
+      Enum.all?(~w(economy commerce production institutions survival), fn name ->
+        not match?(%{"enabled" => true}, data["capabilities"][name])
+      end)
 
   defp dependencies?(spec, caps) do
     Enum.all?(spec["requires"], fn name ->

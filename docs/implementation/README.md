@@ -29,11 +29,16 @@ Phases 01–03 are implemented as the first bounded batch: pure scene/knowledge/
 two original rulesets, and ephemeral World/Zone/Session authority. See the
 [batch handoff](03-zone-sessions/handoff.md) for exact verification and remaining
 limits. Phase 00's [historical handoff](00-baseline/handoff.md) remains historical;
-its account/auth/page regressions were refreshed. The next local batch implements
+its account/auth/page regressions were refreshed. Published commit `083a563` implements
 [04 persistence](04-persistence/handoff.md) and [05 native GM authoring](05-gm-workspace/handoff.md).
+Its [GitHub Actions run](https://github.com/houllette/genesis/actions/runs/33951975847)
+passed; that result covers 04–05, not later uncommitted work.
 Phase 05 remains unqualified until actual browser visual/keyboard/narrow-layout
 QA is available; its server-driven workflow tests are not a substitute.
-Phases 06–16 are not started. All 17 folders have briefs;
+[06 local settlement systems](06-world-subsystems/handoff.md) is implemented in
+the following phase-06 batch, with exact validation and carried browser
+gates in its handoff. It is not fully qualified. Phases 07–16 are not started.
+All 17 folders have briefs;
 unstarted handoffs remain explicit templates. The phase order places GM workspace
 in 05, Lemieux authoring in 10,
 combined player play is 11, the living pilot is 12, and long history is 14.
@@ -130,7 +135,8 @@ scale are not first-delivery requirements.
 
 ## Assigning a fresh agent
 
-> Implement `docs/implementation/04-persistence/README.md`. Follow `AGENTS.md`
+> First close the browser qualification gates in the 05 and 06 handoffs, then
+> implement `docs/implementation/07-world-zones/README.md`. Follow `AGENTS.md`
 > and the current shared contracts. Validate the predecessor's actual handoff
 > and regression commands first. Work through this phase using red–green–refactor,
 > run `mix precommit`, and record exact evidence and next-agent entry checks in

@@ -98,7 +98,10 @@ placeholder is permitted. Final whole-tree gate evidence follows.
 - The first full gate caught three auth tests expecting the historical landing
   page. Targeted auth tests were updated to verify the new library redirect and
   authenticated account menu before the successful final gate.
-- Code remains an uncommitted local diff on the base SHA above. Remote main and
-  its successful CI still contain the earlier 01–03 foundation, not this batch.
+- Publication update: the 04–05 batch is committed and pushed to `main` as
+  `083a563a0c6dedaca4474cd30eac6b160eed87ce`; remote HEAD was verified.
+  [GitHub Actions 33951975847](https://github.com/houllette/genesis/actions/runs/33951975847)
+  completed successfully, including tests/security/Dialyzer/workflow lint.
+  This evidence does not cover the following uncommitted phase-06 slice.
 - Phase 05's browser visual/keyboard/narrow-layout gate remains open; no external
   service, actual player play or production recovery qualification is inferred.

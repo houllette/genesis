@@ -1,12 +1,31 @@
 defmodule Genesis.Core.Scene do
   @moduledoc "Pure bounded scene actions; callers supply identity, revision, event ID and audit time."
-  alias Genesis.Core.{Audience, Check, Context, FictionalTime, Knowledge, Proposal, Scope, State}
+  alias Genesis.Core.{
+    Audience,
+    Check,
+    Context,
+    FictionalTime,
+    Knowledge,
+    LocalAction,
+    Proposal,
+    Scope,
+    State
+  }
 
   @spec reduce(state :: State.t(), actor_id :: String.t(), intent :: map(), inputs :: map()) ::
           {:ok, State.t(), [map()]} | {:error, atom()}
-  def reduce(state, actor_id, intent, inputs) do
-    with :ok <- envelope(state, inputs),
-         {:ok, terms} <- terms(state, actor_id, intent),
+  def reduce(state, actor_id, intent, inputs) when is_map(intent) do
+    with :ok <- envelope(state, inputs) do
+      if LocalAction.handles?(Map.get(intent, :type)),
+        do: LocalAction.reduce(state, actor_id, intent, inputs),
+        else: reduce_scene(state, actor_id, intent, inputs)
+    end
+  end
+
+  def reduce(_state, _actor_id, _intent, _inputs), do: {:error, :unsupported_action}
+
+  defp reduce_scene(state, actor_id, intent, inputs) do
+    with {:ok, terms} <- terms(state, actor_id, intent),
          {:ok, terms} <- resolve_roll(state, actor_id, terms, inputs.draws),
          {:ok, time} <-
            FictionalTime.advance(state.time, %{unit: :second, value: terms["duration"]}) do
@@ -20,6 +39,9 @@ defmodule Genesis.Core.Scene do
     cond do
       not Scope.id?(id) ->
         {:error, :invalid_proposal}
+
+      LocalAction.handles?(type) ->
+        LocalAction.propose(state, actor_id, intent, id)
 
       not Map.has_key?(state.actions, type) ->
         {:error, :unsupported_action}
@@ -48,15 +70,26 @@ defmodule Genesis.Core.Scene do
   @spec confirm(state :: State.t(), proposal :: Proposal.t(), inputs :: map()) ::
           {:ok, State.t(), [map()]} | {:error, atom()}
   def confirm(state, %Proposal{} = proposal, inputs) do
-    with {:ok, current} <- propose(state, proposal.actor_id, proposal.intent, proposal.id),
-         true <- current == proposal do
+    with :ok <- revalidate(state, proposal) do
       reduce(state, proposal.actor_id, proposal.intent, inputs)
-    else
-      _ -> {:error, :stale_proposal}
     end
   end
 
   def confirm(_state, _proposal, _inputs), do: {:error, :stale_proposal}
+
+  @spec revalidate(state :: State.t(), proposal :: Proposal.t()) :: :ok | {:error, atom()}
+  def revalidate(state, proposal) do
+    if LocalAction.handles?(proposal.intent.type) do
+      LocalAction.revalidate(state, proposal)
+    else
+      with {:ok, current} <- propose(state, proposal.actor_id, proposal.intent, proposal.id),
+           true <- current == proposal do
+        :ok
+      else
+        _ -> {:error, :stale_proposal}
+      end
+    end
+  end
 
   @doc "Only disclosable terms leave the authority; the complete proposal stays server-side."
   @spec proposal_view(proposal :: Proposal.t()) :: map()
@@ -64,7 +97,17 @@ defmodule Genesis.Core.Scene do
     do: %{
       id: proposal.id,
       revision: proposal.revision,
-      terms: Map.take(proposal.terms, ["cost", "resource", "duration"])
+      terms:
+        Map.take(proposal.terms, [
+          "cost",
+          "resource",
+          "duration",
+          "summary",
+          "unit_price",
+          "total",
+          "unit",
+          "expires_at"
+        ])
     }
 
   @spec effects_for(effects :: [map()], viewer :: map()) :: [map()]
@@ -140,7 +183,8 @@ defmodule Genesis.Core.Scene do
 
   defp target_available(state, actor_id, target, "take") do
     case state.items[target] do
-      %{owner: {:zone, zone}, audience: audience} when zone == state.zone_id ->
+      %{owner: {:zone, zone}, audience: audience, quantity: quantity}
+      when zone == state.zone_id and quantity > 0 ->
         if Audience.permits?(audience, %{actor_id: actor_id}),
           do: :ok,
           else: {:error, :unavailable}

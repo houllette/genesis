@@ -42,6 +42,7 @@ defmodule Genesis.Persistence.Snapshots do
          true <- state.rules_ref == bundle.ref,
          rules = Systems.scene_rules(bundle),
          true <- state.actions == rules.actions and state.context_rules == rules.context_rules,
+         true <- state.local_rules == Map.get(rules, :local_rules),
          true <- state.scope.world_id == world.id and state.scope.generation == world.generation,
          true <-
            state.time.world_id == world.id and state.time.calendar_id == world.calendar_id and

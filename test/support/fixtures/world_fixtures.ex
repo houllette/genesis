@@ -10,12 +10,17 @@ defmodule Genesis.WorldFixtures do
 
   def world_fixture(opts \\ []) do
     owner = UserScope.for_user(user_fixture())
-    {:ok, original} = Systems.load("fantasy_demo")
+    {:ok, original} = Systems.load(Keyword.get(opts, :ruleset, "fantasy_demo"))
 
     data =
       if Keyword.get(opts, :zero_duration, false),
         do: put_in(original.data["actions"]["help"]["duration"]["value"], 0).data,
         else: original.data
+
+    data =
+      if Keyword.get(opts, :zero_duration, false) and data["local"],
+        do: put_in(data["local"]["rest"]["duration"], 0),
+        else: data
 
     {:ok, bundle} = Systems.Bundle.validate(data)
 
@@ -24,7 +29,10 @@ defmodule Genesis.WorldFixtures do
         bundle: data
       )
 
-    seed = SceneFixtures.scene(Systems.scene_rules(bundle))
+    seed =
+      if data["local"],
+        do: Genesis.SettlementFixtures.scene(Systems.scene_rules(bundle), opts),
+        else: SceneFixtures.scene(Systems.scene_rules(bundle))
 
     seed =
       if Keyword.get(opts, :private_target, false),

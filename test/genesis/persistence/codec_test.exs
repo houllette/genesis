@@ -4,6 +4,15 @@ defmodule Genesis.Persistence.CodecTest do
   alias Genesis.Persistence.{Codec, Transition}
   import Genesis.SceneFixtures
 
+  test "phase-05 snapshot bytes keep their digest and exact round trip after additive local fields" do
+    old = "test/fixtures/phase05_snapshot.json" |> File.read!() |> Jason.decode!()
+    assert {:ok, restored} = Codec.load_state(old)
+    assert restored.local_rules == nil
+    assert restored.settlement == nil
+    assert restored.items["ration"].commodity == nil
+    assert Codec.dump!(restored) == old
+  end
+
   test "a resolved state survives JSON with exact types, scope, draws and UTC microseconds" do
     original = scene()
 

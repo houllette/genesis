@@ -4,7 +4,9 @@ The MVP needs a small connected world, not only a narrative/encounter engine.
 This contract adds economies, commerce and religion explicitly, alongside the
 other basic systems that let places and institutions respond to player actions.
 It builds on [living history/context](living-history-and-context.md), uses the
-same scoped single-writer model, and introduces no game code or dependencies now.
+same scoped single-writer model. This page defines delivery targets, not a claim
+that every subsystem exists; the [phase-06 handoff](06-world-subsystems/handoff.md)
+records the implemented local mechanics and their remaining qualification gates.
 
 The native GM workbench configures and inspects these mechanics first. Player TUI
 controls follow in 11. During play, mutations belong to an Experience; only its
@@ -38,8 +40,10 @@ does not require enabling every subsystem in every setting.
 
 ## MVP coverage and boundaries
 
-All entries are planned, not implemented. The named phases own the following
-minimums; more detailed simulation remains an extension rather than a hidden gate.
+The table is the target coverage map. Consult phase handoffs for current support:
+01–05 supply the core/persistence/workbench and 06 adds bounded local mechanics;
+later scheduled, cross-zone and historical behavior remains deferred. The named
+phases own these minimums; detailed simulation is not an implicit extra gate.
 
 | Subsystem | Smallest useful MVP behavior/data | Delivery | Explicit later expansion |
 | --- | --- | --- | --- |
@@ -125,6 +129,15 @@ silent success. Minimal pins/capability checks start in 02/06; 14 expands these
 into generation parameters without replacing the manifest. Disabling a live
 mechanic with balances, affiliations or pending work requires an explicit
 migration/settlement policy, not deleting those records or reinterpreting canon.
+
+In the phase-06 implementation this contract is split explicitly: the immutable
+ruleset bundle declares the supported capability manifest and local rules;
+`Systems.WorldProfile` supplies a versioned society preset pinned inside the
+Zone's settlement. The existing world's descriptive `profile` metadata is not
+mechanical authority. Campaigns cannot override either rules or the settlement
+preset. Phase 07 may promote shared definitions to World ownership only with an
+explicit identity/pin migration; do not start reading an unversioned metadata
+label as policy.
 
 ## Connected acceptance journey
 

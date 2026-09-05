@@ -1,6 +1,6 @@
 defmodule Genesis.Core.Curation do
   @moduledoc "Typed authoring reducer. Notes, plans and persona are never action facts or autonomous agents."
-  alias Genesis.Core.{Actor, Item, Scope, State}
+  alias Genesis.Core.{Actor, Item, Scope, Settlement, State}
 
   @spec apply(state :: State.t(), id :: String.t(), attrs :: map(), character :: Actor.t() | nil) ::
           {:ok, State.t()} | {:error, atom()}
@@ -10,13 +10,15 @@ defmodule Genesis.Core.Curation do
          {:ok, checked} <- State.restore(%{updated | revision: state.revision + 1}) do
       {:ok, checked}
     else
+      {:error, :invalid_state} -> {:error, :invalid_record}
+      {:error, _} = error -> error
       _ -> {:error, :invalid_record}
     end
   end
 
   defp valid_attrs?(%{"kind" => kind, "name" => name} = attrs),
     do:
-      kind in ~w(zone npc pc item) and Scope.id?(name) and
+      kind in ~w(zone npc pc item stock settlement) and Scope.id?(name) and
         Map.keys(attrs) -- allowed_fields(kind) == []
 
   defp valid_attrs?(_attrs), do: false
@@ -25,6 +27,17 @@ defmodule Genesis.Core.Curation do
   defp allowed_fields("npc"), do: ~w(kind name temperament goal visibility)
   defp allowed_fields("pc"), do: ~w(kind name)
   defp allowed_fields("item"), do: ~w(kind name quantity visibility)
+  defp allowed_fields("stock"), do: ~w(kind name commodity quantity owner_id reason)
+
+  defp allowed_fields("settlement"),
+    do:
+      ~w(kind name profile merchant_id representative_id tradition claim price scarcity_threshold multiplier capacity quote_ttl accepting_members witnessing enabled)
+
+  defp record(state, id, %{"kind" => "settlement"} = attrs, _character),
+    do: Settlement.configure(state, id, attrs)
+
+  defp record(state, id, %{"kind" => "stock"} = attrs, _character),
+    do: Settlement.stock(state, id, attrs)
 
   defp record(state, id, %{"kind" => "zone"} = attrs, _character) when id == state.zone_id,
     do: {:ok, %{state | name: attrs["name"], description: Map.get(attrs, "description", "")}}
@@ -74,7 +87,9 @@ defmodule Genesis.Core.Curation do
         audience: audience(attrs)
     }
 
-    {:ok, %{state | items: Map.put(state.items, id, item)}}
+    if is_nil(existing.commodity),
+      do: {:ok, %{state | items: Map.put(state.items, id, item)}},
+      else: {:error, :use_stock_controls}
   end
 
   defp record(_state, _id, _attrs, _character), do: {:error, :invalid_record}

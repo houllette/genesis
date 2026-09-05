@@ -13,6 +13,12 @@ defmodule Genesis.Core.Incorporation do
          true <- working.scope == working_base.scope and working.zone_id == published.zone_id,
          true <- working.elapsed == 0 and working.time == published.time,
          true <-
+           working.local_rules == working_base.local_rules and
+             working.local_rules == published.local_rules,
+         true <-
+           working.settlement == working_base.settlement and
+             working.settlement == published.settlement,
+         true <-
            working_base.rules_ref == published.rules_ref and
              working.rules_ref == published.rules_ref,
          {:ok, updated} <- changed_fields(published, working_base, working, mapping) do

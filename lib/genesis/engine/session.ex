@@ -19,6 +19,9 @@ defmodule Genesis.Engine.Session do
   def confirm(session, request_id, proposal_id),
     do: GenServer.call(session, {:confirm, request_id, proposal_id}, 5000)
 
+  @spec cancel(session :: pid(), proposal_id :: String.t()) :: :ok | {:error, atom()}
+  def cancel(session, proposal_id), do: GenServer.call(session, {:cancel, proposal_id}, 5000)
+
   @spec submit_step(
           session :: pid(),
           plan_id :: String.t(),
@@ -88,6 +91,9 @@ defmodule Genesis.Engine.Session do
 
         {:confirm, id, proposal} ->
           Zone.confirm(state.zone, id, proposal)
+
+        {:cancel, proposal} ->
+          GenServer.call(state.zone, {:cancel, proposal}, 3000)
 
         {:step, plan, index, payload} ->
           GenServer.call(state.zone, {:step, plan, index, payload}, 3000)

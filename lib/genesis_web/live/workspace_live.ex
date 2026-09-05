@@ -632,8 +632,20 @@ defmodule GenesisWeb.WorkspaceLive do
         </aside>
         <.world_overview :if={@live_action == :world} {assigns} />
         <.place_editor :if={@live_action == :zone} {assigns} />
+        <.link
+          :if={@zone && @can_build && !@preview}
+          id="place-resources"
+          class="secondary-button mt-6"
+          navigate={~p"/worlds/#{@world.id}/places/#{@zone.zone_id}/resources"}
+        >Resources & institutions</.link>
         <.campaign_editor :if={@live_action == :campaign} {assigns} />
         <.experience_editor :if={@live_action == :experience} {assigns} />
+        <.link
+          :if={@experience && @working && @can_manage}
+          id="experience-resources"
+          class="secondary-button mt-6"
+          navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}/resources"}
+        >Trade, production & local consequences</.link>
         <section class="mt-12 border-t border-stone-200 pt-8">
           <h2 class="section-heading">Experiences</h2>
           <div id="experiences" phx-update="stream" class="grid gap-4 md:grid-cols-2">

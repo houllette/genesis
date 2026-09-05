@@ -1,6 +1,6 @@
 defmodule Genesis.Core.Context do
   @moduledoc "Bounded, data-driven context selection from current actor, deed and companion state."
-  alias Genesis.Core.{Audience, Scope}
+  alias Genesis.Core.{Audience, Institutions, Scope}
 
   @spec valid?(rules :: term()) :: boolean()
   def valid?(rules) when is_list(rules) and length(rules) <= 32,
@@ -9,6 +9,12 @@ defmodule Genesis.Core.Context do
         length(Enum.uniq_by(rules, & &1["id"])) == length(rules)
 
   def valid?(_rules), do: false
+
+  @doc "Institution-specific eligibility from established membership and obligations, never a claimed belief."
+  @spec institution(state :: map(), actor_id :: String.t(), representative_id :: String.t()) ::
+          map()
+  def institution(state, actor_id, representative_id),
+    do: Institutions.context(state, actor_id, representative_id)
 
   defp valid_rule?(
          %{"id" => id, "priority" => priority, "when" => condition, "set" => setters} = rule

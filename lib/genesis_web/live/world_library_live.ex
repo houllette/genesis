@@ -29,7 +29,7 @@ defmodule GenesisWeb.WorldLibraryLive do
     do:
       assign(socket,
         form:
-          to_form(%{"name" => "Ashfall", "ruleset" => "fantasy_demo", "profile" => "village"},
+          to_form(%{"name" => "Ashfall", "ruleset" => "fantasy_local", "profile" => "village"},
             as: :world
           ),
         request_id: Ecto.UUID.generate()
@@ -78,6 +78,8 @@ defmodule GenesisWeb.WorldLibraryLive do
               type="select"
               label="Ruleset"
               options={[
+                {"Fantasy · settlement mechanics", "fantasy_local"},
+                {"Cyberpunk · settlement mechanics", "cyberpunk_local"},
                 {"Fantasy · original demo", "fantasy_demo"},
                 {"Cyberpunk · original demo", "cyberpunk_demo"}
               ]}

@@ -135,3 +135,52 @@ meaningful failed regressions and final verification: 153 tests through
 `mix precommit`, plus a clean Dialyzer run. The static demo bundles ship as tracked
 build resources; authored/persisted bundle validation is not a runtime file loader.
 No game route, migration, provider call, commit or publication was added.
+
+That paragraph records the original 01–03 execution, not current repository
+status. The 04–05 follow-up is now published as `083a563`, with successful remote
+CI. Phase 06 is the next local slice; 07 is deliberately a separate ownership
+and cross-zone recovery change. See its [handoff](06-world-subsystems/handoff.md)
+for validation and browser gates.
+
+## Phase-06 implementation translation guards — 2026-09-05
+
+- Stock and treasury are views over existing owned Item lots, not a second
+  ledger. Transfers preserve commodity quantities; every authorized opening or
+  correction records a reason and source/sink delta. Production records each
+  consumed source lot and declared output/waste. Spent identities remain at zero;
+  they are not transferable rewards, and collection bounds still apply.
+- The first recipe exchanges abstract, bundle-declared units (two grain into
+  one ration and one chaff). This is a game accounting invariant, not a claim
+  of physical mass or monetary value equivalence. A sell bid rounds down from
+  the base price and does not receive the scarcity multiplier, preventing a
+  buy/sell loop from creating currency at a stock-band boundary.
+- A local quote ID returned by the Zone is opaque and content-bound to the
+  principal, actor, scope, rules, exact terms and consulted state. Confirm/cancel
+  that returned ID, not the proposal request ID. Retiring or pruning a quote
+  must never allow a delayed confirmation to authorize different terms. A
+  stable confirmation request ID still recovers its committed receipt first.
+- Quotes reserve nothing. The conservative consulted-state digest covers local
+  actors, inventories, knowledge and policy, but excludes lifecycle-only revision
+  changes and UTC. Pause/resume alone preserves a quote; fictional expiry is
+  half-open (`cursor >= expiry` is expired). After uncommitted process loss,
+  re-propose against current state; never infer success from a lost connection.
+- Rest declares 3,600 fictional seconds in the shipped local bundles. The
+  cross-campaign test uses naturally zero-duration trade/production/institutional
+  deeds; it does not delete rest time to fit 04's incorporation proof. Delayed
+  recipes and positive-duration incorporation remain unavailable until 08.
+- Affiliation is a private sourced relationship, not a belief predicate or
+  platform role. An offering moves real rations but does not imply membership;
+  aid consumes actual institution stock and redeems one fulfilled obligation.
+  Claims about deities remain lore. Only a witnessed or legitimately reported
+  violation permits the authorized representative's one scoped debt response;
+  there is no omniscient reputation update or full court simulator.
+- The GM may operate these real NPCs without a player account. Existing actor
+  authorization still forbids impersonating another account's PC. Native world
+  editing, Experience actions and player knowledge keep separate scopes.
+- Original bundle pins and format-1 checkpoint digests are durable contracts.
+  New optional fields encode only when present; a captured pre-06 JSON snapshot
+  round-trips exactly. Reject unknown fields and inconsistent restored stock;
+  do not rewrite shipped checkpoints or silently enable mechanics in old worlds.
+- Browser-hosted LiveView tests are server-driven acceptance evidence, not
+  actual browser visual/keyboard QA. The unavailable Browser connection is an
+  open qualification gate for both 05 and 06, not a reason to mark either done.

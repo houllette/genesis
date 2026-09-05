@@ -60,8 +60,10 @@ defmodule GenesisWeb.Router do
       live "/worlds", WorldLibraryLive, :index
       live "/worlds/:world_id", WorkspaceLive, :world
       live "/worlds/:world_id/places/:zone_id", WorkspaceLive, :zone
+      live "/worlds/:world_id/places/:zone_id/resources", SettlementLive, :edit
       live "/worlds/:world_id/campaigns/:campaign_id", WorkspaceLive, :campaign
       live "/worlds/:world_id/experiences/:experience_id", WorkspaceLive, :experience
+      live "/worlds/:world_id/experiences/:experience_id/resources", SettlementLive, :run
       live "/invitations/:token", InvitationLive, :accept
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email

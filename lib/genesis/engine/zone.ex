@@ -1,7 +1,7 @@
 defmodule Genesis.Engine.Zone do
   @moduledoc "Single scoped writer. Persistent mode commits snapshots, receipts and effects before acknowledgement."
   use GenServer, restart: :temporary
-  alias Genesis.Core.{Scene, Scope, State}
+  alias Genesis.Core.{LocalAction, Scene, Scope, State}
   alias Genesis.Engine.{Draws, World}
   alias Genesis.Persistence.{Actions, Control, Curation, Snapshot, Snapshots}
   alias Genesis.Repo
@@ -167,18 +167,24 @@ defmodule Genesis.Engine.Zone do
     do: {:reply, {:error, :paused}, state}
 
   defp authorized_call({:propose, id, intent}, _caller, principal, state) do
-    key = proposal_key(principal, id)
+    state = %{
+      state
+      | proposals:
+          Map.reject(state.proposals, fn {_key, proposal} ->
+            LocalAction.handles?(proposal.intent.type) and
+              Scene.revalidate(state.scene, proposal) != :ok
+          end)
+    }
 
-    cond do
-      not valid_intent?(intent, true) ->
-        {:reply, {:error, :invalid_request}, state}
+    if valid_intent?(intent, true),
+      do: store_proposal(state, principal, id, intent),
+      else: {:reply, {:error, :invalid_request}, state}
+  end
 
-      map_size(state.proposals) >= 64 and not Map.has_key?(state.proposals, key) ->
-        {:reply, {:error, :capacity_limit}, state}
-
-      true ->
-        store_proposal(state, principal, id, intent, key)
-    end
+  defp authorized_call({:cancel, id}, _caller, principal, state) do
+    if Scope.id?(id),
+      do: {:reply, :ok, retire_local_proposal(state, principal, id)},
+      else: {:reply, {:error, :invalid_request}, state}
   end
 
   defp authorized_call({:submit, request}, _caller, principal, state) do
@@ -208,10 +214,16 @@ defmodule Genesis.Engine.Zone do
   defp authorized_call(_request, _caller, _principal, state),
     do: {:reply, {:error, :invalid_request}, state}
 
-  defp store_proposal(state, principal, id, intent, key) do
+  defp store_proposal(state, principal, id, intent) do
     case Scene.propose(state.scene, principal.actor_id, intent, id) do
       {:ok, proposal} ->
+        proposal = bind_local_quote(proposal, principal)
+        key = proposal_key(principal, proposal.id)
+
         case state.proposals[key] do
+          nil when map_size(state.proposals) >= 64 ->
+            {:reply, {:error, :capacity_limit}, state}
+
           nil ->
             {:reply, {:ok, Scene.proposal_view(proposal)},
              %{state | proposals: Map.put(state.proposals, key, proposal)}}
@@ -225,6 +237,37 @@ defmodule Genesis.Engine.Zone do
 
       other ->
         {:reply, other, state}
+    end
+  end
+
+  # Retiring a quote must not let a delayed confirmation authorize new terms.
+  # Callers confirm the returned opaque identity, never their proposal request ID.
+  defp bind_local_quote(proposal, principal) do
+    if LocalAction.handles?(proposal.intent.type) do
+      digest =
+        :crypto.hash(
+          :sha256,
+          :erlang.term_to_binary({principal.id, principal.campaign_id, proposal}, [:deterministic])
+        )
+        |> Base.encode16(case: :lower)
+
+      %{proposal | id: "quote-" <> digest}
+    else
+      proposal
+    end
+  end
+
+  defp retire_local_proposal(state, principal, id) do
+    key = proposal_key(principal, id)
+
+    case state.proposals[key] do
+      %{intent: intent} ->
+        if LocalAction.handles?(intent.type),
+          do: %{state | proposals: Map.delete(state.proposals, key)},
+          else: state
+
+      nil ->
+        state
     end
   end
 
@@ -263,9 +306,7 @@ defmodule Genesis.Engine.Zone do
 
   defp execute(state, principal, id, payload, key) do
     with {:ok, proposal} <- resolve_proposal(state, principal, payload),
-         {:ok, current} <-
-           Scene.propose(state.scene, principal.actor_id, proposal.intent, proposal.id),
-         true <- current == proposal,
+         :ok <- Scene.revalidate(state.scene, proposal),
          readings <- Clock.read(state.clock),
          draws <- draws(state, proposal),
          inputs <- %{
@@ -287,15 +328,22 @@ defmodule Genesis.Engine.Zone do
          {:ok, receipt} <- persist(state, principal, next, receipt) do
       Actions.fault(state.storage_opts, :after_commit)
       receipts = if state.storage, do: state.receipts, else: Map.put(state.receipts, key, receipt)
-      state = %{state | scene: next, receipts: receipts}
+
+      state =
+        %{state | scene: next, receipts: receipts}
+        |> retire_local_proposal(principal, confirmed_id(payload))
+
       Actions.fault(state.storage_opts, :after_install)
       {:reply, receipt_reply(state, principal, receipt), notify(state)}
     else
-      false -> {:reply, {:error, :stale_proposal}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
       {:clarify, _field} -> {:reply, {:error, :invalid_request}, state}
     end
   end
+
+  defp confirmed_id({:confirm, id}), do: id
+  defp confirmed_id({:step, _plan, _index, payload}), do: confirmed_id(payload)
+  defp confirmed_id(_payload), do: nil
 
   defp persist(%{storage: nil}, _principal, _next, receipt), do: {:ok, receipt}
 
@@ -382,7 +430,9 @@ defmodule Genesis.Engine.Zone do
   defp valid_step_payload?(_payload), do: false
 
   defp valid_intent?(%{type: type, target_id: target} = intent, _clarification),
-    do: map_size(intent) == 2 and Scope.id?(type) and Scope.id?(target)
+    do:
+      LocalAction.valid_intent?(intent) or
+        (map_size(intent) == 2 and Scope.id?(type) and Scope.id?(target))
 
   defp valid_intent?(%{type: type} = intent, true), do: map_size(intent) == 1 and Scope.id?(type)
   defp valid_intent?(_intent, _clarification), do: false

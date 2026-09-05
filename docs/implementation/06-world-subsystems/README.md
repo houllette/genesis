@@ -1,5 +1,9 @@
 # Phase 06 — Local world-subsystem foundations
 
+Implementation status and evidence are in [handoff.md](handoff.md). The local
+slice is implemented; actual browser qualification for 05–06 remains open.
+The acceptance checklist below is not a claim that this external gate passed.
+
 ## Validate phase 05 first
 
 Read [phase 05's handoff](../05-gm-workspace/handoff.md). Run the actual native GM
@@ -96,22 +100,24 @@ Regional effects never write directly into another group's working state.
 
 ## Handoff criteria
 
-- [ ] GM controls honor scope claims, confirmation, paused time and
+- [x] GM controls honor scope claims, confirmation, paused time and
   provisional-versus-published resources.
 
-- [ ] Economy, commerce and religious/secular institution foundations have real
+- [x] Economy, commerce and religious/secular institution foundations have real
   state transitions, source-linked consequences and durable replay/recovery.
-- [ ] Money/items and recipe/source/sink accounting satisfy exact invariants;
+- [x] Money/items and recipe/source/sink accounting satisfy exact invariants;
   races/retries cannot duplicate settlement, charge on rejection or mint rewards.
-- [ ] Contextual aid/access and local law reflect authorized actions/knowledge;
+- [x] Contextual aid/access and local law reflect authorized actions/knowledge;
   beliefs, canon and platform permissions remain distinct.
-- [ ] Two configurable presets work without world-name branches; disabled/
+- [x] Two configurable presets work without world-name branches; disabled/
   record-only capabilities fail clearly and cannot silently corrupt live state.
 - [ ] The connected journey works through native GM controls and engine APIs after restart,
   preserving cross-campaign ownership/privacy and persistent deeds.
-- [ ] Each MVP subsystem has an honest implemented/record-only/deferred status,
+  Server-driven and durable engine tests pass; actual browser qualification
+  remains open, as detailed in the handoff.
+- [x] Each MVP subsystem has an honest implemented/record-only/deferred status,
   versioned extension contract and named next delivery phase.
-- [ ] `mix precommit` passes; [handoff.md](handoff.md) names exact APIs, transaction
+- [x] `mix precommit` passes; [handoff.md](handoff.md) names exact APIs, transaction
   boundaries, fixtures, red-test evidence and next-agent regression commands.
 
 Phase 07 first validates this phase's actual handoff and focused

@@ -15,6 +15,28 @@ defmodule Genesis.Systems.BundleTest do
     assert {:error, :unknown_bundle} = Systems.load("../config/runtime")
   end
 
+  test "settlement bundles pin capabilities and reject incompatible recipes or advertised fake support" do
+    for id <- ["fantasy_local", "cyberpunk_local"] do
+      assert {:ok, bundle} = Systems.load(id)
+
+      for capability <- ~w(economy commerce production institutions survival),
+          do: assert(:ok = Systems.capability(bundle, capability))
+
+      assert bundle.data["local"]["version"] == 1
+
+      for data <- [
+            put_in(bundle.data["local"]["recipe"]["delay"], 1),
+            put_in(bundle.data["local"]["recipe"]["output"], "coin"),
+            put_in(bundle.data["local"]["recipe"]["input_units"], 1),
+            put_in(bundle.data["local"]["rest"]["maximum"], 999),
+            put_in(bundle.data["capabilities"]["production"]["status"], "record_only"),
+            put_in(bundle.data["capabilities"]["economy"]["enabled"], false)
+          ] do
+        assert {:error, :invalid_bundle} = Bundle.validate(data)
+      end
+    end
+  end
+
   test "malformed bundles, invalid defaults, references, durations and unsupported mechanics fail" do
     {:ok, bundle} = Systems.load("fantasy_demo")
     data = bundle.data

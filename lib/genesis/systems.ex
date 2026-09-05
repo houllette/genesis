@@ -1,7 +1,7 @@
 defmodule Genesis.Systems do
   @moduledoc "Loads original bounded rulesets. Validation and resolution remain transport independent."
   alias Genesis.Core.Actor
-  alias Genesis.Systems.{Bundle, Declarative}
+  alias Genesis.Systems.{Bundle, Declarative, LocalRules}
 
   # Ship only these reviewed demo assets; there is no caller-controlled runtime
   # filesystem loader. Resource tracking recompiles this module after JSON edits.
@@ -15,7 +15,32 @@ defmodule Genesis.Systems do
   @spec load(id :: String.t()) :: {:ok, map()} | {:error, term()}
   def load("fantasy_demo"), do: decode(@fantasy)
   def load("cyberpunk_demo"), do: decode(@cyberpunk)
+  def load("fantasy_local"), do: local_bundle("fantasy_demo", "fantasy_local")
+  def load("cyberpunk_local"), do: local_bundle("cyberpunk_demo", "cyberpunk_local")
   def load(_id), do: {:error, :unknown_bundle}
+
+  defp local_bundle(base, id) do
+    {:ok, bundle} = load(base)
+
+    caps =
+      Enum.reduce(
+        ~w(economy commerce production institutions survival),
+        bundle.data["capabilities"],
+        fn name, caps ->
+          requires = if name == "economy", do: ["scene"], else: ["economy"]
+
+          Map.put(caps, name, %{"status" => "playable", "enabled" => true, "requires" => requires})
+        end
+      )
+
+    bundle.data
+    |> Map.merge(%{
+      "id" => id,
+      "capabilities" => caps,
+      "local" => LocalRules.defaults()
+    })
+    |> Bundle.validate()
+  end
 
   defp decode(bytes) do
     with {:ok, data} <- Jason.decode(bytes), do: Bundle.validate(data)
@@ -47,7 +72,13 @@ defmodule Genesis.Systems do
         {id, Map.put(action, "duration", action["duration"]["value"])}
       end)
 
-    %{rules_ref: bundle.ref, actions: actions, context_rules: bundle.data["context_rules"]}
+    rules = %{
+      rules_ref: bundle.ref,
+      actions: actions,
+      context_rules: bundle.data["context_rules"]
+    }
+
+    if bundle.data["local"], do: Map.put(rules, :local_rules, bundle.data["local"]), else: rules
   end
 
   @spec capability(bundle :: map(), name :: String.t()) :: :ok | {:error, :unsupported_capability}

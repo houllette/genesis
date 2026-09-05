@@ -1,12 +1,27 @@
 defmodule Genesis.Core.State do
   @moduledoc "Pure zone state. Constructors validate trusted fixture/boundary values before reduction."
-  alias Genesis.Core.{Action, Actor, Audience, Context, FictionalTime, Item, Knowledge, Scope}
+  alias Genesis.Core.{
+    Action,
+    Actor,
+    Audience,
+    Context,
+    FictionalTime,
+    Item,
+    Knowledge,
+    Scope,
+    Settlement
+  }
+
   @enforce_keys [:scope, :zone_id, :time]
+  alias Genesis.Systems.LocalRules
+
   defstruct [
     :scope,
     :zone_id,
     :time,
     :rules_ref,
+    :local_rules,
+    :settlement,
     name: nil,
     description: "",
     actors: %{},
@@ -25,6 +40,8 @@ defmodule Genesis.Core.State do
           zone_id: String.t(),
           time: Genesis.Core.FictionalTime.t(),
           rules_ref: term(),
+          local_rules: map() | nil,
+          settlement: map() | nil,
           name: String.t() | nil,
           description: String.t(),
           actors: map(),
@@ -48,7 +65,8 @@ defmodule Genesis.Core.State do
          Enum.all?(actors, &valid_actor?/1) and
          Enum.all?(items, &valid_item?(&1, actors, zone)) and
          Enum.all?(knowledge, &valid_knowledge?(&1, scope, actors)) and
-         Enum.all?(actors, &valid_companion?(&1, actors)) do
+         Enum.all?(actors, &valid_companion?(&1, actors)) and
+         local?(attrs, actors, items) do
       {:ok,
        struct(
          __MODULE__,
@@ -128,6 +146,7 @@ defmodule Genesis.Core.State do
          elapsed: state.elapsed,
          revision: state.revision,
          status: state.status,
+         settlement: Settlement.view(state, viewer),
          actors: actors |> Enum.map(&actor_view(&1, viewer)) |> Enum.sort_by(& &1.id),
          items: items |> Enum.map(&item_view(&1, viewer)) |> Enum.sort_by(& &1.id),
          knowledge: knowledge |> Enum.map(&knowledge_view(&1, viewer)) |> Enum.sort_by(& &1.id)
@@ -158,6 +177,8 @@ defmodule Genesis.Core.State do
       :zone_id,
       :time,
       :rules_ref,
+      :local_rules,
+      :settlement,
       :name,
       :description,
       :actors,
@@ -239,11 +260,44 @@ defmodule Genesis.Core.State do
   defp numeric_map?(_values), do: false
 
   defp valid_item?(%Item{} = item, actors, zone) do
-    Scope.id?(item.name) and is_integer(item.quantity) and item.quantity in 1..1_000_000 and
+    Scope.id?(item.name) and is_integer(item.quantity) and quantity?(item) and
       Audience.valid?(item.audience) and valid_owner?(item.owner, actors, zone)
   end
 
   defp valid_item?(_item, _actors, _zone), do: false
+  defp quantity?(%{commodity: nil, quantity: quantity}), do: quantity in 1..1_000_000
+
+  defp quantity?(%{commodity: commodity, quantity: quantity}),
+    do: Scope.id?(commodity) and quantity in 0..1_000_000
+
+  defp local?(attrs, actors, items) do
+    rules = Map.get(attrs, :local_rules)
+    settlement = Map.get(attrs, :settlement)
+    state = Map.merge(attrs, %{actors: index(actors), local_rules: rules})
+
+    (is_nil(rules) or LocalRules.valid?(rules)) and
+      Settlement.valid?(settlement, state) and
+      Enum.all?(items, &local_item?(&1, rules, settlement)) and balances_bounded?(items)
+  end
+
+  defp local_item?(%{commodity: nil}, _rules, _settlement), do: true
+  defp local_item?(_item, _rules, nil), do: false
+
+  defp local_item?(item, rules, settlement) do
+    Map.has_key?(rules["commodities"], item.commodity) and
+      item.name == rules["commodities"][item.commodity] and
+      match?({:actor, _id}, item.owner) and (settlement["enabled"] or item.quantity == 0) and
+      (item.commodity != rules["currency"] or item.quantity == 0 or
+         settlement["profile"]["exchange"] == "currency")
+  end
+
+  defp balances_bounded?(items) do
+    items
+    |> Enum.reject(&is_nil(&1.commodity))
+    |> Enum.group_by(&{&1.owner, &1.commodity})
+    |> Enum.all?(fn {_key, lots} -> Enum.sum(Enum.map(lots, & &1.quantity)) <= 1_000_000 end)
+  end
+
   defp valid_owner?({:zone, zone}, _actors, zone), do: true
   defp valid_owner?({:actor, id}, actors, _zone), do: Enum.any?(actors, &(&1.id == id))
   defp valid_owner?(_owner, _actors, _zone), do: false
@@ -314,7 +368,7 @@ defmodule Genesis.Core.State do
 
   defp actor_view(actor, _viewer), do: Map.take(actor, [:id, :name, :kind, :alive])
   defp item_view(item, %{role: :gm}), do: Map.from_struct(item)
-  defp item_view(item, _viewer), do: Map.take(item, [:id, :name, :owner, :quantity])
+  defp item_view(item, _viewer), do: Map.take(item, [:id, :name, :owner, :quantity, :commodity])
   defp knowledge_view(record, %{role: :gm}), do: Map.from_struct(record)
 
   defp knowledge_view(record, _viewer),

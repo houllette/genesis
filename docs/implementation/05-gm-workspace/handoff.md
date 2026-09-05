@@ -121,8 +121,10 @@ the affected checks plus precommit before closing phase 05.
 `mix precommit` passed **190 tests** (seed 234906) plus all configured compile,
 format, lint, dependency/security, generated-rule, xref and documentation checks.
 `MIX_ENV=test mix dialyzer` passed with zero errors/skips. `mix assets.build`
-passed. The validated code is the uncommitted local diff on the base SHA above;
-it has not been published and has no remote CI result of its own.
+passed. Publication update: the 04–05 batch is committed and pushed to `main` as
+`083a563a0c6dedaca4474cd30eac6b160eed87ce`; remote HEAD was verified and
+[GitHub Actions 33951975847](https://github.com/houllette/genesis/actions/runs/33951975847)
+completed successfully. This result does not cover subsequent uncommitted code.
 The two new migrations are also applied to the local development database.
 
 The browser gate is the only remaining phase-05 acceptance qualification; it
@@ -135,3 +137,11 @@ test/genesis_web/live/world_library_live_test.exs
 test/genesis_web/live/workspace_live_test.exs --warnings-as-errors`.
 Then close the browser gate. Do not infer playable economy, LLM, embeddings,
 player TUI, scale or human play qualification from this batch.
+
+Phase-06 entry repeated the focused command above: **37 passed**, seed 879585.
+Supported Browser setup was retried on 2026-09-05 and still reported
+"No browser is available"; discovery returned `[]`. The user was asked to
+connect a browser. Independent deterministic phase-06 implementation continued
+under the user's request, with this predecessor gate explicitly carried forward,
+not waived or represented as a completed phase. Close both native journeys
+before starting phase 07 or declaring 05–06 fully qualified.

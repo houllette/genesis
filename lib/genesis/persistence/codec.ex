@@ -21,7 +21,8 @@ defmodule Genesis.Persistence.Codec do
     second active paused success partial failure request_id campaign_id principal_id payload effects
     durability durable ephemeral deadline remaining_ms policy_version risk accepted format after before
     participants causal_parent_ids causal_root_id affected_ids operator_id gathering_id plan_id step_index
-    direct confirm event_ids user_id snapshot_id pause resume ready step persona description)a
+    direct confirm event_ids user_id snapshot_id pause resume ready step persona description
+    local_rules settlement commodity record_id accounting)a
   @atom_lookup Map.new(@atoms, &{Atom.to_string(&1), &1})
 
   @spec dump(value :: term()) :: {:ok, map()} | {:error, atom()}
@@ -89,7 +90,7 @@ defmodule Genesis.Persistence.Codec do
 
   defp pack(%{__struct__: module} = value, depth) do
     case Enum.find(@structs, fn {_tag, known} -> known == module end) do
-      {tag, _module} -> ["struct", tag, pack(Map.from_struct(value), depth + 1)]
+      {tag, _module} -> ["struct", tag, pack(stored_fields(value), depth + 1)]
       _ -> throw(:invalid_format)
     end
   end
@@ -130,9 +131,12 @@ defmodule Genesis.Persistence.Codec do
     fields = unpack(value, depth + 1)
     defaults = Map.from_struct(struct(module))
 
-    if is_map(fields) and Enum.sort(Map.keys(fields)) == Enum.sort(Map.keys(defaults)),
-      do: struct(module, fields),
-      else: throw(:invalid_format)
+    optional = optional_fields(module)
+
+    if is_map(fields) and Map.keys(fields) -- Map.keys(defaults) == [] and
+         (Map.keys(defaults) -- Map.keys(fields)) -- optional == [],
+       do: struct(module, fields),
+       else: throw(:invalid_format)
   end
 
   defp unpack(["map", entries], depth) when is_list(entries) and length(entries) <= 5000 do
@@ -153,4 +157,16 @@ defmodule Genesis.Persistence.Codec do
     do: values |> Enum.map(&unpack(&1, depth + 1)) |> List.to_tuple()
 
   defp unpack(_value, _depth), do: throw(:invalid_format)
+
+  # Additive defaults preserve the exact phase-05 encoding and digest. Unknown or
+  # missing non-optional fields still fail closed; no historical rows are rewritten.
+  defp stored_fields(value) do
+    Enum.reduce(optional_fields(value.__struct__), Map.from_struct(value), fn key, fields ->
+      if is_nil(fields[key]), do: Map.delete(fields, key), else: fields
+    end)
+  end
+
+  defp optional_fields(State), do: [:local_rules, :settlement]
+  defp optional_fields(Item), do: [:commodity]
+  defp optional_fields(_module), do: []
 end

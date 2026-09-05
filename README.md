@@ -15,13 +15,22 @@ research and provides a separate build brief and handoff for each fresh agent
 run. Phases 01–03 now provide a pure scene engine, two original rulesets and
 in-memory World/Zone/Session authority. See the
 [batch handoff](docs/implementation/03-zone-sessions/handoff.md) for verification.
-The next local batch adds [durable scoped state](docs/implementation/04-persistence/handoff.md)
-and the [native GM workbench](docs/implementation/05-gm-workspace/handoff.md).
+Published commit `083a563` adds [durable scoped state](docs/implementation/04-persistence/handoff.md)
+and the [native GM workbench](docs/implementation/05-gm-workspace/handoff.md);
+its GitHub Actions checks passed.
 Visit `/worlds` after signing in to curate places, NPCs, items and notes, manage
 campaigns, and prepare/pause/resume Experiences across gatherings. Phase 05's
-actual browser usability gate is still open; full time reconciliation, AI and
-player play surfaces remain later phases. Never use the ephemeral fixture mode
-for real adventures.
+actual browser usability gate is still open.
+
+The next local slice implements [phase 06 settlement systems](docs/implementation/06-world-subsystems/handoff.md):
+finite stock, currency/barter, confirmed exchanges, one production recipe,
+supply-consuming rest and religious/secular institutional obligations and aid.
+Create a world with a **local systems** ruleset, then use a place's resource
+controls and an Experience's working resource controls. Original demo worlds
+retain their pinned rules; they are not silently upgraded. Phase 06 also carries
+the browser qualification gate. Cross-zone work (07),
+full time reconciliation (08), AI and player play surfaces remain later phases.
+Never use the ephemeral fixture mode for real adventures.
 
 The [living-history contract](docs/implementation/living-history-and-context.md)
 connects generated history with ongoing play: character choices and companions
