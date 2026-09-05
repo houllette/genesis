@@ -13,6 +13,10 @@ defmodule Genesis.Application do
       {Oban, Application.fetch_env!(:genesis, Oban)},
       {DNSCluster, query: Application.get_env(:genesis, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Genesis.PubSub},
+      {Genesis.Engine.Supervisor,
+       name: Genesis.Engine.Supervisor,
+       registry: Genesis.Engine.Registry,
+       worlds: Genesis.Engine.Worlds},
       # Start a worker by calling: Genesis.Worker.start_link(arg)
       # {Genesis.Worker, arg},
       # Start to serve requests, typically the last entry

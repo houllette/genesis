@@ -81,6 +81,7 @@ defmodule Genesis.MixProject do
       {:dns_cluster, "~> 0.3.0"},
       {:bandit, "~> 1.5"},
       {:oban, "~> 2.23"},
+      {:ex_tempo, "== 1.6.4"},
       {:tidewave, "~> 0.8", only: :dev},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},

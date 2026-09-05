@@ -1,0 +1,177 @@
+{
+  "format": 1,
+  "id": "fantasy_demo",
+  "version": 1,
+  "attributes": [
+    {
+      "id": "might",
+      "min": 0,
+      "max": 5,
+      "default": 2
+    },
+    {
+      "id": "insight",
+      "min": 0,
+      "max": 5,
+      "default": 1
+    }
+  ],
+  "resources": [
+    {
+      "id": "effort",
+      "max": 10,
+      "default": 10
+    },
+    {
+      "id": "focus",
+      "max": [
+        "add",
+        2,
+        [
+          "ref",
+          "insight"
+        ]
+      ],
+      "default": 2
+    }
+  ],
+  "slots": [
+    "hand",
+    "body"
+  ],
+  "items": {
+    "staff": {
+      "slot": "hand"
+    },
+    "coat": {
+      "slot": "body"
+    }
+  },
+  "traits": [
+    "riverborn"
+  ],
+  "skills": [
+    "diplomacy"
+  ],
+  "actions": {
+    "take": {
+      "kind": "take",
+      "duration": {
+        "unit": "second",
+        "value": 0
+      },
+      "cost": 0,
+      "resource": "effort",
+      "capability": "scene"
+    },
+    "help": {
+      "kind": "deed",
+      "duration": {
+        "unit": "second",
+        "value": 60
+      },
+      "cost": 1,
+      "resource": "effort",
+      "fact": "helped",
+      "capability": "scene"
+    },
+    "access": {
+      "kind": "access",
+      "duration": {
+        "unit": "second",
+        "value": 0
+      },
+      "cost": 2,
+      "resource": "effort",
+      "outcome": "confrontation",
+      "capability": "scene"
+    },
+    "attempt": {
+      "kind": "check",
+      "duration": {
+        "unit": "second",
+        "value": 30
+      },
+      "cost": 1,
+      "resource": "effort",
+      "attribute": "might",
+      "check": {
+        "mode": "roll_over",
+        "sides": 20,
+        "target": 12
+      },
+      "capability": "checks"
+    }
+  },
+  "context_rules": [
+    {
+      "id": "origin",
+      "priority": 10,
+      "when": {
+        "kind": "trait",
+        "key": "riverborn"
+      },
+      "set": {
+        "cost": 1
+      }
+    },
+    {
+      "id": "rescuer",
+      "priority": 20,
+      "when": {
+        "kind": "deed",
+        "key": "helped"
+      },
+      "set": {
+        "outcome": "admitted"
+      }
+    },
+    {
+      "id": "companion",
+      "priority": 30,
+      "when": {
+        "kind": "companion",
+        "key": "diplomacy",
+        "relationship": "allied"
+      },
+      "set": {
+        "outcome": "admitted"
+      }
+    }
+  ],
+  "capabilities": {
+    "scene": {
+      "status": "playable",
+      "enabled": true,
+      "requires": []
+    },
+    "checks": {
+      "status": "playable",
+      "enabled": true,
+      "requires": []
+    },
+    "commerce": {
+      "status": "deferred",
+      "enabled": false,
+      "requires": [
+        "scene"
+      ]
+    },
+    "lore": {
+      "status": "record_only",
+      "enabled": false,
+      "requires": []
+    }
+  },
+  "progression": {
+    "milestone": {
+      "id": "bridge-service",
+      "fact": "helped",
+      "award": "village-access"
+    },
+    "defeat": "nonlethal",
+    "exceptional_risk": "permadeath",
+    "policy_version": 1,
+    "retirement": "offstage"
+  }
+}

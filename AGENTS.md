@@ -2,18 +2,21 @@
 
 ## Project overview
 
-Genesis is a living-world, system-agnostic tabletop RPG engine on Elixir/OTP.
-One shared persistent world hosts solo curated stories, GM-less group stories
-(sync or async), and live GM sessions; NPCs and narrative beats are partly
-LLM-driven behind hard engine validation. Players connect over a terminal UI
-(ExRatatui, served over SSH) and over LiveView in the browser — both are
-transports onto the same authoritative state.
+Genesis is a personal, GM-first world-building and story-curation tool on
+Elixir/OTP with system-agnostic interactive adventures. Native browser management
+is the primary workflow. Optional players use one shared TUI over SSH and a
+LiveView Play tab; Lemieux-backed NPCs stay behind hard engine validation.
+An Experience can span multiple gatherings. Its outcomes are saved locally and
+incorporated into shared world history at completion/review, not in real time.
 
 The full architecture report is `ttrpg-elixir.md`; read it before making
-structural decisions. The load-bearing parts:
+structural decisions, then read the current `docs/implementation/architecture.md`
+and `docs/implementation/experience-time.md`: they supersede the historical
+report's real-time and immediate shared-canon assumptions. The load-bearing parts:
 
 - **The zone is the consistency boundary.** A `Zone` GenServer is the single
-  writer for its slice of the world; NPCs, items and factions live inside it as
+  writer for its scoped slice (published, experience working state or candidate);
+  NPCs, items and factions live inside it as
   plain data, and an NPC is promoted to its own process only when it goes "hot"
   (active LLM conversation or autonomous agenda). Sessions send intents to the
   authoritative zone; they never mutate world state themselves.
@@ -23,10 +26,18 @@ structural decisions. The load-bearing parts:
 - **Single node, on purpose.** Process lookup goes through `Registry` and
   `DynamicSupervisor` so Horde can be swapped in later. Do not add libcluster
   or Horde without a decision to revisit §2/§10 of the report.
-- **Time is lazy.** A coarse world clock plus zone hibernation and
-  catch-up-on-wake. Never tick idle entities.
-- **Persistence is snapshot plus an append-only `WorldEvent` log** (audit,
-  replay, "what happened while I was gone"), not full event sourcing. Postgres
+- **Time is experience-based and lazy.** Pause/resume preserves fictional time.
+  Completed experiences declare elapsed time; a GM-managed advancement window
+  reconciles their outcomes and advances the world once. Only approved targets
+  drive catch-up. Idleness, wall time and restart never advance the world.
+- **Tempo is the time-library foundation, not the world clock authority.** Follow
+  `docs/implementation/tempo-and-time.md`: `:ex_tempo` supplies the testable UTC
+  clock and supported calendar/interval operations. Keep monotonic timeouts in
+  OTP, durable jobs in Oban and fictional coordinates explicit. Core reads no
+  clocks; test-process clock pins do not propagate to supervised children.
+- **Persistence is snapshot plus append-only scoped logs**: ExperienceEvents
+  during play and source-linked WorldEvents on incorporation (audit/replay),
+  not full event sourcing. Save each acknowledged action before reply. Postgres
   with jsonb for system-specific attributes; pgvector for NPC memory.
 - **Rulesets are data.** A `GameSystem` behaviour plus declarative bundles;
   fantasy and cyberpunk are two config bundles, not two codebases.
@@ -40,8 +51,8 @@ structural decisions. The load-bearing parts:
 ## Commands
 
 Everything below is bundled into one alias. **Run `mix precommit` when you
-think you're done** — it runs the same checks CI runs, so a green `precommit`
-means a green PR.
+think you're done** — it runs the main local checks mirrored by CI. A green
+`precommit` does not certify remote CI or its separate Dialyzer job.
 
 | Task | Command |
 | --- | --- |
@@ -86,6 +97,9 @@ alias in `mix.exs` is the authoritative list for this project.
 - **Don't add dependencies to solve small problems.** The standard library
   covers date and time (`Date`, `Time`, `DateTime`, `Calendar`), and every new
   dep is one more thing CI has to audit. Ask before adding one.
+  Tempo is explicitly selected for the phased time integration; qualify and lock
+  `:ex_tempo` in phase 03 under its contract, not in the boilerplate. This does not
+  approve unrelated optional packages or replacing all standard-library dates.
 - **Pattern match at function heads** rather than with nested `case`/`cond`
   where it reads naturally; use `with` for chains of fallible calls. Never
   write a `case` whose only clauses are `true` and `false` — that's an `if`.

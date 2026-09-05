@@ -1,13 +1,42 @@
 # Genesis
 
-A living-world, system-agnostic tabletop RPG engine on Elixir/OTP. One shared
-persistent world supports invited solo curated stories, GM-less group stories
-(synchronous or asynchronous), and live GM sessions — with LLM-driven NPCs and
-narrative content held behind hard engine validation. Players connect over a
-terminal UI (ExRatatui over SSH) or LiveView in the browser; both are transports
-onto the same authoritative world state.
+A personal, GM-first world-building and story-curation tool on Elixir/OTP.
+Build a rich persistent setting, connect its people and institutions, prepare
+adventures and incorporate what actually happens into the world's living history.
+The native browser GM workbench is primary. Optional player interaction uses one
+shared TUI over SSH or in a LiveView Play tab, with Lemieux-backed NPCs behind
+engine validation.
 
-The architecture report that drives the design is [`ttrpg-elixir.md`](ttrpg-elixir.md).
+The historical architecture report is [`ttrpg-elixir.md`](ttrpg-elixir.md);
+the current implementation contracts supersede its real-time/player-first assumptions.
+
+The [phased implementation plan](docs/implementation/README.md) reconciles the
+research and provides a separate build brief and handoff for each fresh agent
+run. Phases 01–03 now provide a pure scene engine, two original rulesets and
+in-memory World/Zone/Session authority. See the
+[batch handoff](docs/implementation/03-zone-sessions/handoff.md) for verification.
+Persistence and native GM workflows are next; there are no gameplay routes yet,
+and the ephemeral engine must not be used for real adventures.
+
+The [living-history contract](docs/implementation/living-history-and-context.md)
+connects generated history with ongoing play: character choices and companions
+change situations, major deeds leave lasting consequences, and later stories
+and NPCs can remember them when relevant.
+
+The [world-subsystem plan](docs/implementation/world-subsystems.md) scopes basic
+economies, commerce, religion/institutions and other connected mechanics, with
+explicit working foundations and deferred extension boundaries.
+
+The [experience-time contract](docs/implementation/experience-time.md) defines
+adventures spanning multiple gatherings: save outcomes during play, pause fictional
+time between meetings, then review elapsed time and incorporate completed adventures
+without silently colliding with another campaign.
+
+The [Tempo integration contract](docs/implementation/tempo-and-time.md) assigns
+testable system-clock reads and supported calendar/interval operations to Tempo,
+while preserving OTP timeout timing, Oban scheduling and explicit fictional time.
+Phase 03 pins `:ex_tempo` 1.6.4 and tests its UTC clock boundary; supported
+fictional calendar simulation remains phase 08.
 
 ## Requirements
 
@@ -44,7 +73,8 @@ mix precommit
 
 This is the single alias CI mirrors: dependency audits, a warnings-as-errors
 compile, formatting, Credo, usage-rules freshness, the compile-time dependency
-check, Sobelow, docs, and the test suite. A green `precommit` means a green PR.
+check, Sobelow, docs, and the test suite. A green `precommit` is local evidence,
+not a guarantee that remote CI or the additional release gates have passed.
 Dialyzer runs in CI in its own job (`mix dialyzer`) — it's too slow for the edit
 loop.
 
