@@ -100,6 +100,54 @@ defmodule GenesisWeb.ReviewLiveTest do
     refute has_element?(page, "#seal-review")
     refute has_element?(page, "#preview-publication")
     assert Repo.get!(Experience, ctx.experience.id).status == "active"
+    assert has_element?(page, "#completion-form")
+
+    page
+    |> form("#scene-time-form",
+      duration: %{value: "4", unit: "minute", reason: "A discussion at the bridge"}
+    )
+    |> render_submit()
+
+    assert has_element?(page, "#recorded-elapsed", "300 seconds")
+    assert has_element?(page, "#time-ledger", "+240s")
+
+    page
+    |> form("#completion-form",
+      completion: %{
+        elapsed_seconds: "7200",
+        outcome: "abandoned",
+        reason: "The crew withdrew after two hours"
+      }
+    )
+    |> render_submit()
+
+    assert has_element?(page, "#completion-summary", "7200 seconds")
+    assert has_element?(page, "#completion-summary", "300 seconds")
+    refute has_element?(page, "#completion-form")
+    refute has_element?(page, "#preview-publication")
+    assert Repo.get!(Experience, ctx.experience.id).status == "ready"
+  end
+
+  test "malformed time and completion payloads are rejected without losing the review", ctx do
+    {:ok, page, _} =
+      live(ctx.conn, ~p"/worlds/#{ctx.world.id}/experiences/#{ctx.experience.id}/review")
+
+    for {event, payload} <- [
+          {"elapse",
+           %{
+             "duration" => %{"value" => %{}, "unit" => "minute", "reason" => "Malformed"},
+             "revision" => "1"
+           }},
+          {"elapse", %{"duration" => nil, "revision" => "1"}},
+          {"finish", %{"completion" => %{"elapsed_seconds" => []}, "revision" => "1"}},
+          {"finish", %{"completion" => nil, "revision" => "1"}},
+          {"elapse", %{"duration" => %{"value" => "1"}, "revision" => nil}},
+          {"finish", %{"completion" => %{"elapsed_seconds" => "1"}, "revision" => %{}}}
+        ] do
+      render_click(page, event, payload)
+      assert has_element?(page, "#completion-form")
+      assert Repo.get!(Experience, ctx.experience.id).status == "active"
+    end
   end
 
   test "outsiders cannot render or forge a review command", ctx do

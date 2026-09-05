@@ -141,7 +141,10 @@ defmodule Genesis.Engine.Zone do
              request,
              state.storage_opts
            ) do
-      {:reply, {:ok, changed.result}, notify(%{state | scene: changed.scene})}
+      Actions.fault(state.storage_opts, :control_after_commit)
+      state = %{state | scene: changed.scene}
+      Actions.fault(state.storage_opts, :control_after_install)
+      {:reply, {:ok, changed.result}, notify(state)}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
     end

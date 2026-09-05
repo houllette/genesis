@@ -78,9 +78,23 @@ universal knowledge; both publish with the Experience. The atlas exposes accepte
 knowledge sources and a collapsed typed-annotation editor. Campaign notes remain
 separate from canonical facts. Run `mix ecto.migrate` for `world_standings` and
 `global_dependencies`, then restart any already-running development server.
-Browser QA remains user-deferred. See the Phase 07 handoff for current validation;
-these working-tree changes have not been committed or pushed.
+Phase 07 is published as `9d41176`; its GitHub CI passed. Browser QA remains user-deferred.
 Never use the ephemeral fixture mode for real adventures.
+
+**Phase 08A (in progress, uncommitted)** adds explicit scene time and completion
+to the existing Experience review screen. Inspect recorded action durations, add
+explained scene time in a single-place Experience, then finish with a total that
+includes—not adds to—time already recorded. Completed, failed and abandoned
+outcomes keep their actual expenditures; optional needs-review status holds them
+for later reconciliation. Sealing still does not publish or release claims.
+Positive-time and multi-Experience publication are not enabled yet.
+
+New-world creation has collapsed optional Gregorian/Coptic calendar controls with
+an explicit epoch; existing ordinal worlds are unchanged. Month/year arithmetic
+uses that pinned calendar. Run `mix ecto.migrate` for the additive `worlds.calendar`
+column and restart the development server before manual use. See the
+[Phase 08 handoff](docs/implementation/08-living-time/handoff.md) for exact limits,
+validation and the next implementation slices.
 
 The [living-history contract](docs/implementation/living-history-and-context.md)
 connects generated history with ongoing play: character choices and companions

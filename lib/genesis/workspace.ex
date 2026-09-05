@@ -16,6 +16,8 @@ defmodule Genesis.Workspace do
     Experience,
     Footprints,
     Gathering,
+    LocalTime,
+    Seals,
     Snapshot,
     Snapshots,
     Transfers,
@@ -31,11 +33,16 @@ defmodule Genesis.Workspace do
     Tx.run(world, fn record ->
       with {:ok, exp} <- Experiences.get(scope, world, experience, ["gm"]),
            {:ok, rows} <- Footprints.snapshots(exp),
-           {:ok, places} <- review_places(scope, world, exp, rows) do
+           {:ok, places} <- review_places(scope, world, exp, rows),
+           {:ok, user} <- Access.user_id(scope),
+           {:ok, basis} <- Seals.basis(exp),
+           {:ok, time} <- LocalTime.summary(exp) do
         single =
           Repo.aggregate(from(e in Experience, where: e.window_id == ^exp.window_id), :count) == 1
 
-        zero = Enum.all?(places, &(&1.elapsed == 0))
+        zero =
+          Enum.all?(places, &(&1.elapsed == 0)) and
+            Map.get(exp.completion, "elapsed_seconds", 0) == 0
 
         {:ok,
          %{
@@ -43,6 +50,10 @@ defmodule Genesis.Workspace do
            experience: exp,
            places: places,
            eligible: single and zero,
+           elapsed_seconds: time.elapsed_seconds,
+           basis: basis,
+           time_entries:
+             time.events |> Enum.filter(&(user in &1.audience_users)) |> LocalTime.entries(),
            origin_revision: Enum.find(rows, &(&1.zone_id == exp.zone_id)).revision,
            can_publish: Access.world(scope, world, ["steward"]) == :ok
          }}

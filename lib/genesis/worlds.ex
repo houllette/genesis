@@ -6,6 +6,7 @@ defmodule Genesis.Worlds do
   alias Genesis.Persistence.{Access, Codec, Tx, World, WorldMember}
   alias Genesis.{Repo, Systems}
   alias Genesis.Systems.Bundle
+  alias Genesis.Time.Calendar
 
   @spec create_world(scope :: term(), attrs :: map(), request_id :: String.t(), opts :: keyword()) ::
           {:ok, map()} | {:error, term()}
@@ -142,11 +143,15 @@ defmodule Genesis.Worlds do
 
   defp valid_world?(attrs) when is_map(attrs),
     do:
-      Enum.all?(Map.keys(attrs), &(&1 in ~w(name ruleset profile))) and
+      Enum.all?(Map.keys(attrs), &(&1 in ~w(name ruleset profile calendar))) and
         Scope.id?(attrs["name"]) and
+        valid_calendar?(Map.get(attrs, "calendar", %{})) and
         Map.get(attrs, "profile", "village") in ["village", "frontier"]
 
   defp valid_world?(_attrs), do: false
+
+  defp valid_calendar?(calendar) when calendar == %{}, do: true
+  defp valid_calendar?(calendar), do: Calendar.validate(calendar) == :ok
 
   defp create(user, id, attrs, bundle, request_id, payload) do
     world =
@@ -155,7 +160,10 @@ defmodule Genesis.Worlds do
         creator_id: user,
         name: attrs["name"],
         bundle: bundle.data,
-        profile: Map.get(attrs, "profile", "village")
+        profile: Map.get(attrs, "profile", "village"),
+        calendar: Map.get(attrs, "calendar", %{}),
+        calendar_id: get_in(attrs, ["calendar", "id"]) || "ordinal",
+        calendar_version: get_in(attrs, ["calendar", "version"]) || 1
       })
 
     Tx.insert!(WorldMember, %{world_id: id, user_id: user, role: "steward"})

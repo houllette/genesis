@@ -1,11 +1,13 @@
 # Handoff: 07 — Linked world atlas, multiple zones and global ownership
 
-Status: **Phase 07 complete within its documented bounds; ready for Phase 08 entry validation**. Published
-07A remains `10c54f6`; the existing 07B/07C1/07C2 work and new 07D changes are
-uncommitted. This top section is the current handoff. Earlier restrictions and the
-historical remaining-work list below describe their own slice, not current gaps.
-No Phase 08 feature, dependency, provider or timer started. No commit or push was
-requested or performed in this turn. Browser QA remains explicitly user-deferred.
+Status: **Phase 07 complete within its documented bounds and published**.
+On 2026-09-05 the user authorized publication: all 07B–07D changes were committed
+as `9d41176f2f83b907ab3348b2bbe20eaae3a3df79` and pushed to `origin/main`.
+Remote SHA matched; [GitHub CI](https://github.com/houllette/genesis/actions/runs/33993626247)
+completed successfully, including Dialyzer. Fresh `mix precommit` passed 342 tests,
+seed 147270, before that commit. Browser QA remains explicitly user-deferred.
+The original slice evidence below retains its pre-publication wording/history.
+Phase 08 is now in progress; follow [its current handoff](../08-living-time/handoff.md).
 
 ## 07D — Companions, delivery, sourced global state and continuity — 2026-09-05
 

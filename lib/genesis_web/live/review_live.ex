@@ -15,12 +15,68 @@ defmodule GenesisWeb.ReviewLive do
        experience_id: exp,
        review: nil,
        pending: nil,
+       completion_form: nil,
+       time_form: to_form(%{"unit" => "minute", "value" => "0", "reason" => ""}, as: :duration),
+       time_request: Ecto.UUID.generate(),
        seal_request: Ecto.UUID.generate()
      )
      |> load()}
   end
 
   @impl true
+  def handle_event("finish", %{"completion" => attrs, "revision" => revision}, socket)
+      when is_map(attrs) do
+    with {revision, ""} <- parse_integer(revision),
+         {total, ""} <- parse_integer(Map.get(attrs, "elapsed_seconds", "")),
+         attrs = Map.put(attrs, "elapsed_seconds", total),
+         attrs =
+           Map.update(
+             attrs,
+             "review_required",
+             false,
+             &Map.get(%{"true" => true, "false" => false}, &1)
+           ),
+         {:ok, _} <-
+           command(
+             socket,
+             {:status, socket.assigns.experience_id, {:finish, attrs}, revision,
+              socket.assigns.seal_request}
+           ) do
+      {:noreply,
+       socket
+       |> load()
+       |> put_flash(
+         :info,
+         "Completion saved. Actual costs remain recorded; the world has not advanced."
+       )}
+    else
+      {:error, reason} -> failure(socket, reason)
+      _ -> failure(socket, :invalid_completion)
+    end
+  end
+
+  def handle_event("elapse", %{"duration" => attrs, "revision" => revision}, socket)
+      when is_map(attrs) do
+    with {revision, ""} <- parse_integer(revision),
+         {value, ""} <- parse_integer(Map.get(attrs, "value", "")),
+         attrs = Map.put(attrs, "value", value),
+         {:ok, _} <-
+           command(
+             socket,
+             {:status, socket.assigns.experience_id, {:elapse, attrs}, revision,
+              socket.assigns.time_request}
+           ) do
+      {:noreply,
+       socket
+       |> assign(time_request: Ecto.UUID.generate(), completion_form: nil)
+       |> load()
+       |> put_flash(:info, "Scene time recorded once. Published time is unchanged.")}
+    else
+      {:error, reason} -> failure(socket, reason)
+      _ -> failure(socket, :invalid_local_time)
+    end
+  end
+
   def handle_event("seal", %{"revision" => revision}, %{assigns: %{review: review}} = socket)
       when not is_nil(review) and is_binary(revision) do
     # The captured revision is never silently refreshed to make a stale confirmation succeed.
@@ -103,8 +159,10 @@ defmodule GenesisWeb.ReviewLive do
           )
 
         socket
-        |> assign(review: Map.delete(review, :places))
+        |> assign(review: Map.drop(review, [:places, :time_entries]))
+        |> completion_form(review)
         |> stream(:places, review.places, reset: true)
+        |> stream(:time_entries, review.time_entries, reset: true)
         |> stream(:standings, standings, reset: true)
 
       {:error, reason} when reason in [:publication_busy, :transfer_busy] ->
@@ -117,6 +175,26 @@ defmodule GenesisWeb.ReviewLive do
         |> put_flash(:error, "Review is unavailable or your GM permission changed.")
     end
   end
+
+  defp completion_form(%{assigns: %{completion_form: nil}} = socket, review),
+    do:
+      assign(socket,
+        completion_form:
+          to_form(
+            %{
+              "elapsed_seconds" => to_string(review.elapsed_seconds),
+              "outcome" => "completed",
+              "reason" => "",
+              "basis" => review.basis
+            },
+            as: :completion
+          )
+      )
+
+  defp completion_form(socket, _review), do: socket
+
+  defp parse_integer(value) when is_binary(value), do: Integer.parse(value)
+  defp parse_integer(_value), do: :error
 
   defp failure(socket, reason) do
     socket =
@@ -139,7 +217,26 @@ defmodule GenesisWeb.ReviewLive do
       "The saved state no longer matches its sealed manifest. Nothing was published; the steward must investigate."
 
   defp message(:unauthorized),
-    do: "Publication requires current world stewardship and campaign GM access."
+    do:
+      "This action requires current campaign GM access; publication additionally requires world stewardship."
+
+  defp message(:duration_before_recorded_time),
+    do: "The total cannot be shorter than the time already recorded in play."
+
+  defp message(:multi_zone_time_unavailable),
+    do:
+      "Scene time across several visited places requires the next time-coordination slice. No time was added."
+
+  defp message(:unsupported_calendar),
+    do:
+      "Months and years need a supported, pinned calendar and epoch. Use explicit seconds, minutes, hours or days for an ordinal world."
+
+  defp message(:request_conflict),
+    do:
+      "This request already has a different saved result. Reload to begin a new reviewed request."
+
+  defp message(:stale_completion),
+    do: "The reviewed outcomes changed. Reload and review the new footprint before finishing."
 
   defp message(_),
     do:
@@ -157,11 +254,113 @@ defmodule GenesisWeb.ReviewLive do
             <h1 id="review-title" class="display-title">{@review.experience.name}</h1>
           </header>
           <aside id="review-boundary" class="notice">
-            Review every visited place below. This batch supports one Experience, up to eight places, with no elapsed fictional time. Time reconciliation and multi-Experience review come later. Sealing stops play and keeps claims held; it does not publish anything and cannot currently be undone.
+            Finish an adventure with its actual outcome and total fictional duration. Completion stops play and keeps claims held; it does not publish anything and cannot currently be undone. Publication still supports only one zero-duration Experience until ordered time reconciliation is implemented.
           </aside>
           <p :if={!@review.eligible} id="review-ineligible" class="notice">
             This window needs time or multi-Experience reconciliation. Its outcomes remain saved locally; publication is unavailable here.
           </p>
+          <section id="experience-time-review" class="workspace-panel space-y-4">
+            <h2 class="section-heading">Fictional time and completion</h2>
+            <p id="recorded-elapsed">Recorded in play: {@review.elapsed_seconds} seconds.</p>
+            <p class="helper-text">
+              The completion total includes time already paid by actions. Any difference is an end-of-adventure duration for later reconciliation, not another action cost or permission to skip due consequences.
+            </p>
+            <div id="time-ledger" phx-update="stream" class="space-y-2">
+              <p id="time-ledger-empty" class="hidden only:block helper-text">
+                No explicit time contributions visible to you. Older events retain their original time data.
+              </p>
+              <div :for={{id, entry} <- @streams.time_entries} id={id} class="text-sm">
+                <span>{entry.type}: +{entry.seconds}s ({entry.from} → {entry.to})</span>
+                <span :if={entry.reason}> · {entry.reason}</span>
+                <.link
+                  class="text-link ml-2"
+                  navigate={
+                    ~p"/worlds/#{@world_id}/history?#{%{experience_id: @experience_id, event: entry.id}}"
+                  }
+                >Source</.link>
+              </div>
+            </div>
+            <details :if={@review.experience.status == "active"} id="scene-time-controls">
+              <summary class="cursor-pointer text-sm font-semibold">
+                Record additional scene time
+              </summary>
+              <.form for={@time_form} id="scene-time-form" phx-submit="elapse" class="mt-4 space-y-3">
+                <input type="hidden" name="revision" value={@review.origin_revision} />
+                <.input
+                  field={@time_form[:value]}
+                  type="number"
+                  min="0"
+                  max="31622400"
+                  label="Additional time"
+                  required
+                />
+                <.input
+                  field={@time_form[:unit]}
+                  type="select"
+                  label="Unit"
+                  options={~w(second minute hour day month year)}
+                />
+                <.input
+                  field={@time_form[:reason]}
+                  label="What happened during this time?"
+                  required
+                  maxlength="2048"
+                />
+                <button id="record-scene-time" class="secondary-button" phx-disable-with="Saving…">Record scene time</button>
+              </.form>
+            </details>
+            <.form
+              :if={@review.experience.status in ["active", "paused"]}
+              for={@completion_form}
+              id="completion-form"
+              phx-submit="finish"
+              class="space-y-3"
+            >
+              <.input field={@completion_form[:basis]} type="hidden" />
+              <input type="hidden" name="revision" value={@review.origin_revision} />
+              <.input
+                field={@completion_form[:elapsed_seconds]}
+                type="number"
+                min={@review.elapsed_seconds}
+                max="31622400"
+                label="Total fictional duration (seconds, including recorded play)"
+                required
+              />
+              <.input
+                field={@completion_form[:outcome]}
+                type="select"
+                label="Actual outcome"
+                options={~w(completed failed abandoned)}
+              />
+              <.input
+                field={@completion_form[:reason]}
+                type="textarea"
+                label="Completion and duration explanation"
+                required
+                maxlength="2048"
+              />
+              <.input
+                field={@completion_form[:review_required]}
+                type="checkbox"
+                label="Keep this sealed outcome in needs review"
+              />
+              <button
+                id="finish-experience"
+                class="primary-button"
+                phx-disable-with="Finishing…"
+                data-confirm="Finish and seal these outcomes? Play stops and claims remain held."
+              >Finish Experience</button>
+            </.form>
+            <div :if={@review.experience.completion["format"] == 3} id="completion-summary">
+              <p>Outcome: {@review.experience.completion["declaration"]["outcome"]}</p>
+              <p>
+                Declared total: {@review.experience.completion["elapsed_seconds"]} seconds. Recorded play: {@review.experience.completion[
+                  "recorded_elapsed_seconds"
+                ]} seconds.
+              </p>
+              <p>Completion ID: {@review.experience.completion["completion_id"]}</p>
+            </div>
+          </section>
           <section class="workspace-panel">
             <h2 class="section-heading">World-level changes</h2>
             <p class="helper-text">

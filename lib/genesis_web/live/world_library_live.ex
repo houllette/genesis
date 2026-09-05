@@ -13,7 +13,7 @@ defmodule GenesisWeb.WorldLibraryLive do
 
   @impl true
   def handle_event("create", %{"world" => attrs, "request_id" => request}, socket) do
-    case Worlds.create_world(socket.assigns.current_scope, attrs, request) do
+    case Worlds.create_world(socket.assigns.current_scope, calendar_attrs(attrs), request) do
       {:ok, world} ->
         {:noreply, push_navigate(socket, to: ~p"/worlds/#{world.id}")}
 
@@ -21,7 +21,10 @@ defmodule GenesisWeb.WorldLibraryLive do
         {:noreply,
          socket
          |> assign(:form, to_form(attrs, as: :world))
-         |> put_flash(:error, "Add a name and choose a supported ruleset and profile.")}
+         |> put_flash(
+           :error,
+           "Add a name and choose a supported ruleset, profile and valid calendar epoch."
+         )}
     end
   end
 
@@ -29,11 +32,47 @@ defmodule GenesisWeb.WorldLibraryLive do
     do:
       assign(socket,
         form:
-          to_form(%{"name" => "Ashfall", "ruleset" => "fantasy_local", "profile" => "village"},
+          to_form(
+            %{
+              "name" => "Ashfall",
+              "ruleset" => "fantasy_local",
+              "profile" => "village",
+              "calendar_kind" => "ordinal",
+              "epoch_year" => "1",
+              "epoch_month" => "1",
+              "epoch_day" => "1"
+            },
             as: :world
           ),
         request_id: Ecto.UUID.generate()
       )
+
+  defp calendar_attrs(attrs) do
+    {options, attrs} = Map.split(attrs, ~w(calendar_kind epoch_year epoch_month epoch_day))
+
+    if Map.get(options, "calendar_kind", "ordinal") == "ordinal" do
+      attrs
+    else
+      epoch = Map.new(~w(year month day), &{&1, integer(options["epoch_" <> &1])})
+
+      Map.put(attrs, "calendar", %{
+        "format" => 1,
+        "id" => "world-calendar",
+        "version" => 1,
+        "implementation" => options["calendar_kind"],
+        "epoch" => epoch
+      })
+    end
+  end
+
+  defp integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} -> number
+      _ -> nil
+    end
+  end
+
+  defp integer(_value), do: nil
 
   @impl true
   def render(assigns) do
@@ -96,6 +135,25 @@ defmodule GenesisWeb.WorldLibraryLive do
             <p class="helper-text">
               Profiles set the starting scale, not an automated simulation. World time only moves through an approved advancement.
             </p>
+            <details id="world-calendar-options" class="space-y-3">
+              <summary class="cursor-pointer text-sm font-semibold">Calendar (optional)</summary>
+              <p class="helper-text">
+                Keep ordinal seconds, or pin a supported calendar. The epoch below is fictional coordinate zero, not today's date. This cannot be changed after creation.
+              </p>
+              <.input
+                field={@form[:calendar_kind]}
+                type="select"
+                label="Calendar structure"
+                options={[
+                  {"Ordinal seconds", "ordinal"},
+                  {"Gregorian", "gregorian"},
+                  {"Coptic · 13 months", "coptic"}
+                ]}
+              />
+              <.input field={@form[:epoch_year]} type="number" label="Epoch year" min="1" max="9999" />
+              <.input field={@form[:epoch_month]} type="number" label="Epoch month" min="1" max="13" />
+              <.input field={@form[:epoch_day]} type="number" label="Epoch day" min="1" max="31" />
+            </details>
             <button id="create-world" class="primary-button w-full" phx-disable-with="Creating…">Create world
             <.icon name="hero-arrow-right" class="size-4" /></button>
           </.form>

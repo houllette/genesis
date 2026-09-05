@@ -1,12 +1,19 @@
 defmodule Genesis.Persistence.Seals do
   @moduledoc "Immutable completion manifests bind every working snapshot, base, claim and recorded event."
   import Ecto.Query
+  alias Genesis.Core.LocalTime
   alias Genesis.Persistence.Claim
   alias Genesis.Persistence.Codec
   alias Genesis.Persistence.Event
   alias Genesis.Persistence.Footprints
   alias Genesis.Persistence.GlobalPublication
+  alias Genesis.Persistence.World
   alias Genesis.Repo
+
+  @spec basis(experience :: map()) :: {:ok, String.t()} | {:error, atom()}
+  def basis(exp) do
+    with {:ok, manifest} <- capture(exp), do: {:ok, Codec.digest(manifest)}
+  end
 
   @spec capture(experience :: map()) :: {:ok, map()} | {:error, atom()}
   def capture(exp) do
@@ -54,6 +61,9 @@ defmodule Genesis.Persistence.Seals do
           do: manifest,
           else: Map.put(manifest, "global", global)
 
+      calendar = Repo.get!(World, exp.world_id).calendar
+      manifest = if calendar == %{}, do: manifest, else: Map.put(manifest, "calendar", calendar)
+
       {:ok, manifest}
     else
       false -> {:error, :capacity_limit}
@@ -62,6 +72,22 @@ defmodule Genesis.Persistence.Seals do
   end
 
   @spec validate(experience :: map()) :: :ok | {:error, atom()}
+  def validate(
+        %{completion: %{"format" => 3, "declaration" => declaration, "completion_id" => id}} = exp
+      ) do
+    with true <-
+           exp.status ==
+             if(declaration["review_required"] == true, do: "needs_review", else: "ready"),
+         %Event{} = event <- Repo.get_by(Event, experience_id: exp.id, core_event_id: id),
+         {:ok, %{result: %{"declaration" => ^declaration}}} <- Codec.load(event.event),
+         {:ok, current} <- capture_completion(exp, declaration, id),
+         true <- current == exp.completion do
+      :ok
+    else
+      _ -> {:error, :sealed_footprint_changed}
+    end
+  end
+
   def validate(%{completion: %{"format" => 2}} = exp) do
     with {:ok, current} <- capture(exp), true <- current == exp.completion do
       :ok
@@ -78,6 +104,23 @@ defmodule Genesis.Persistence.Seals do
   end
 
   def validate(_exp), do: {:error, :unsealed_experience}
+
+  @spec capture_completion(experience :: map(), declaration :: map(), completion_id :: String.t()) ::
+          {:ok, map()} | {:error, atom()}
+  def capture_completion(exp, declaration, id) do
+    with {:ok, manifest} <- capture(exp),
+         {:ok, declaration} <-
+           LocalTime.declaration(declaration, manifest["elapsed_seconds"]) do
+      {:ok,
+       Map.merge(manifest, %{
+         "format" => 3,
+         "completion_id" => id,
+         "recorded_elapsed_seconds" => manifest["elapsed_seconds"],
+         "elapsed_seconds" => declaration["elapsed_seconds"],
+         "declaration" => declaration
+       })}
+    end
+  end
 
   defp event_manifest(event) do
     fields = [

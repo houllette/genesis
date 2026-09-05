@@ -32,6 +32,7 @@ defmodule Genesis.Persistence.IncorporationPlan do
          true <-
            Repo.aggregate(from(e in Experience, where: e.window_id == ^window.id), :count) == 1,
          :ok <- Seals.validate(exp),
+         :ok <- zero_completion(exp),
          {:ok, rows} <- Footprints.snapshots(exp),
          {:ok, zones} <- load_zones(scope, world, rows, operation),
          :ok <- claims_match(world, exp, zones),
@@ -140,6 +141,9 @@ defmodule Genesis.Persistence.IncorporationPlan do
 
   defp zero_duration(%{elapsed: 0}), do: :ok
   defp zero_duration(_), do: {:error, :time_reconciliation_unavailable}
+
+  defp zero_completion(%{completion: %{"elapsed_seconds" => 0}}), do: :ok
+  defp zero_completion(_), do: {:error, :time_reconciliation_unavailable}
 
   defp claims_match(world, exp, zones) do
     expected = Enum.flat_map(zones, &Footprints.resources(&1.published))

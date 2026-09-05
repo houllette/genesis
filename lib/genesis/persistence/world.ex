@@ -14,6 +14,7 @@ defmodule Genesis.Persistence.World do
     field :profile, :string, default: "village"
     field :calendar_id, :string, default: "ordinal"
     field :calendar_version, :integer, default: 1
+    field :calendar, :map, default: %{}
     field :fictional_time, :integer, default: 0
     timestamps(type: :utc_datetime_usec)
   end

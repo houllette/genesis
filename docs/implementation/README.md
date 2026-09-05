@@ -39,7 +39,7 @@ looked fine after the manual checklist and approved proceeding; the handoffs
 distinguish that acceptance from unavailable agent-observed browser evidence.
 [07A linked atlas/persona](07-world-zones/handoff.md) is published as `10c54f6`
 with [successful remote CI](https://github.com/houllette/genesis/actions/runs/33982428350).
-The uncommitted 07B batch adds World-owned directed connections and institution
+The 07B batch adds World-owned directed connections and institution
 identity/jurisdiction curation. Bounded 07C1 adds footprint expansion, PC/inventory/
 self-contained-knowledge travel, durable reservations/recovery and Session rebinding.
 The user accepted 07A/07B manually and explicitly deferred further Browser QA.
@@ -51,8 +51,13 @@ party delivery/exchange, identity-only cross-place knowledge references, scoped
 World standing/flags and native accepted-source navigation and typed annotations.
 The final `mix precommit` passed 342 tests; separate Dialyzer and asset checks passed.
 See the current handoff's closeout for the explicit Phase 08 entry checks and
-Browser QA deferral. Phases 08–16 are not started. The 07B/07C1/07C2/07D working tree has not
-been committed or pushed.
+Browser QA deferral. Phase 07 is published as `9d41176`, with
+[successful GitHub CI](https://github.com/houllette/genesis/actions/runs/33993626247).
+**Phase 08 is in progress**: [08A](08-living-time/handoff.md) adds explicit scene
+time, sourced action-duration inspection, completion totals/outcomes and a pinned
+Gregorian/Coptic calendar adapter. Positive-time and multi-Experience publication
+remain gated pending ordered due-work/candidate preparation. Phase 08 changes are
+uncommitted; phases 09–16 are not started.
 The user's complexity concern is retained: defer broad UI refinement, keep new
 controls progressive, and fix workflow/authority problems when they arise.
 All 17 folders have briefs;
@@ -152,8 +157,8 @@ scale are not first-delivery requirements.
 
 ## Assigning a fresh agent
 
-> Begin phase 08 from `docs/implementation/08-living-time/README.md`,
-> validating the current Phase 07 handoff, including 07D, before extending time or
+> Continue phase 08 from `docs/implementation/08-living-time/handoff.md`,
+> validating 08A and the published Phase 07 predecessor before extending time or
 > multi-Experience reconciliation. Follow `AGENTS.md`
 > and the current shared contracts. Validate the predecessor's actual handoff
 > and regression commands first. Work through this phase using red–green–refactor,

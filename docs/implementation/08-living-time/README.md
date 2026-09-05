@@ -1,5 +1,11 @@
 # Phase 08 — Experience completion, fictional time and incorporation
 
+Status: **in progress**. 08A delivers the local-time/completion foundation and a
+bounded Gregorian/Coptic calendar adapter. See [the actual handoff](handoff.md).
+This is not completion of the full phase: ordered due work, multi-place time,
+parallel timeline preparation, resumable workers and positive-time publication
+remain. Do not begin Phase 09 or remove the publication/travel guards yet.
+
 ## Validate phase 07 first
 
 Read [phase 07's handoff](../07-world-zones/handoff.md). Run scope-claim/transfer

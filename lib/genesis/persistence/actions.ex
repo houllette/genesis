@@ -7,6 +7,8 @@ defmodule Genesis.Persistence.Actions do
     Authority,
     Codec,
     Event,
+    Experience,
+    LocalTime,
     Receipt,
     Snapshot,
     Snapshots,
@@ -46,10 +48,12 @@ defmodule Genesis.Persistence.Actions do
            snapshot = Repo.get!(Snapshot, principal.snapshot_id),
            :ok <- Transfers.accessible(snapshot.id),
            true <- snapshot.digest == Codec.digest(before),
+           :ok <- LocalTime.admit(Repo.get!(Experience, next.scope.id), before, next),
            :ok <- capacity(next),
            {:ok, _validated} <- State.restore(next),
            :ok <- Snapshots.compatible(world, next),
            {:ok, transition} <- Transition.between(before, next) do
+        receipt = Map.put(receipt, :time, Genesis.Core.LocalTime.contribution(before, next))
         commit_new(world, snapshot, principal, next, receipt, transition, opts)
       else
         {:error, _reason} = error -> error
@@ -89,7 +93,10 @@ defmodule Genesis.Persistence.Actions do
               principal_id: principal.user_id,
               actor_id: principal.actor_id,
               core_event_id: effect.id,
-              event: Codec.dump!(provenance(effect, principal, receipt.payload)),
+              event:
+                Codec.dump!(
+                  Map.put(provenance(effect, principal, receipt.payload), :time, receipt.time)
+                ),
               transition: transition,
               audience_users: Authority.audience_users(principal, effect)
             },

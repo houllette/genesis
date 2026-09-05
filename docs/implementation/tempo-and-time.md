@@ -4,8 +4,11 @@ Tempo is selected for Genesis's testable system-clock boundary and calendar/
 interval operations. It does not decide when fiction advances. The
 [experience-time contract](experience-time.md) remains authoritative: local
 actions, completed experiences and approved downtime supply fictional time.
-Phase 03 has installed and qualified the clock boundary. Calendar/interval
-integration below remains planned for phase 08, not implied by installation.
+Phase 03 installed and qualified the clock boundary. Phase 08A now qualifies a
+small pure Gregorian/Coptic calendar adapter, explicit epochs, clamped month/year
+arithmetic and nonempty half-open interval relations against that same pin.
+Recurrence, scheduled availability and due-work integration remain planned; see
+[08's handoff](08-living-time/handoff.md) for precise supported bounds.
 
 ## Verified fit and adoption
 
