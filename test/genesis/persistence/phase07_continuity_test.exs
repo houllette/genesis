@@ -370,7 +370,7 @@ defmodule Genesis.Persistence.Phase07ContinuityTest do
           )
         end)
 
-      assert_receive {:barrier, worker}
+      assert_receive {:barrier, worker}, 2000
 
       {_ref, entry} =
         Enum.find(:sys.get_state(ctx.world_pid).transfers, fn {_ref, entry} ->
@@ -457,7 +457,7 @@ defmodule Genesis.Persistence.Phase07ContinuityTest do
         Runtime.call(ctx.owner, ctx.world.id, {:incorporate, preview.id, "publish"})
       end)
 
-    assert_receive {:barrier, worker}
+    assert_receive {:barrier, worker}, 2000
 
     try do
       assert Repo.get_by!(PublicationOperation, world_id: ctx.world.id).status == "committed"
