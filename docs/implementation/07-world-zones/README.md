@@ -2,14 +2,35 @@
 
 ## Bounded execution slices
 
-The current run selects **07A: linked atlas and persona identity**, chiefly the
+Status: **complete within the bounds below**. The current handoff records 342
+passing tests in `mix precommit`, separate clean Dialyzer/assets checks, and the
+user-deferred Browser QA. Phase 08 has not been started.
+
+Published **07A: linked atlas and persona identity** covers chiefly the
 record-only portion of slice 6 and existing-creation-path portion of slice 7.
 The user accepted the existing 05–06 interface and chose to defer a broad UI
 redesign. See the [actual handoff](handoff.md) for evidence and remaining limits.
-**07B** still owns the mechanical World graph/global-state migration, claims,
-transfers, race/crash recovery, client resubscription and companion behavior.
+The bounded **07B** slice covers the World-owned graph and stable
+institution identity/jurisdiction portion of slice 1: directed connection
+curation/assessment and explicit, non-destructive registration of existing sites.
+**07C1** adds bounded footprint claims and single-PC/inventory/self-contained-
+knowledge transfer, durable race/crash recovery, Session rebinding and native
+visited-place inspection. Positive elapsed time and cross-place dependencies fail
+closed. **07C2** extends sealing/review/publication over the complete footprint:
+one Experience, at most eight places, zero elapsed fictional time. Candidates,
+Published ownership, source-linked events and receipts commit atomically behind
+a durable world-wide fence; all caches install or become safely cold before it
+releases. The native review page separates irreversible sealing from explicit
+publication approval. This supersedes the 07C1 test-only publication gate.
+**07D** completes the remaining implementation: voluntary bounded companions,
+atomic party delivery/exchange, identity-only cross-place knowledge references,
+source-checked World standing/relief flags, and native accepted-history navigation
+and typed annotations. Its connected three-place/two-campaign journey and recovery
+evidence are recorded at the top of the handoff. Jurisdictions remain declared
+records, not remotely enforced policy; an open connection is not admission.
 Describing a route or affiliation in the atlas never implements those mechanics.
-Do not mark the full phase complete or start 08 from the 07A subset.
+The 07C1 restrictions on companions and cross-place relationship references are
+historical; 07D supersedes them without enabling positive elapsed travel.
 
 ## Validate phase 06 first
 
@@ -108,23 +129,25 @@ invalidates/revalidates affected work.
 
 ## Handoff criteria
 
-- [ ] Cross-zone movement stays within StateScope and preserves one active companion/item
+- [x] Cross-zone movement stays within StateScope and preserves one active companion/item
   assignment and a stable base.
 
-- [ ] Three zones run with single writers and one explicit global-state owner.
-- [ ] Travel preserves actor/item conservation across races and every recovery
+- [x] Three zones run with single writers and one explicit global-state owner.
+- [x] Travel preserves actor/item conservation across races and every recovery
   boundary; DB atomicity is paired with process-cache coordination.
-- [ ] Actor location, receipts and history agree; stale-zone events cannot leak
-  after travel. No global serialization of ordinary unrelated zone actions.
-- [ ] Linked atlas/organisation/lore/relationship records and safe search work
+- [x] Actor location, receipts and history agree; stale-zone events cannot leak
+  after travel. Unrelated Zone reducers and service remain independent; short SQL
+  commits still lock the World row for durable ordering. No World mailbox or SQL
+  transaction waits on Zone callbacks.
+- [x] Linked atlas/organisation/lore/relationship records and safe search work
   in native workspace/scoped read APIs; no competing writer or cross-campaign secret leak.
-- [ ] Every NPC has validated persona/agency defaults, without activating models.
-- [ ] Local economy/institution IDs and receipts survive cross-zone expansion;
+- [x] Every NPC has validated persona/agency defaults, without activating models.
+- [x] Local economy/institution IDs and receipts survive cross-zone expansion;
   markets, cultures/sites and route records share one authoritative ownership
   model, and resource/delivery races preserve phase 06's accounting invariants.
-- [ ] Recruitment/travel conserves one NPC identity and resources; companion
+- [x] Recruitment/travel conserves one NPC identity and resources; companion
   presence changes actual resolution and departure removes only current benefits.
-- [ ] `mix precommit` passes; [handoff.md](handoff.md) records the transfer state
+- [x] `mix precommit` passes; [handoff.md](handoff.md) records the transfer state
   diagram/table, recovery procedure, actual transaction APIs and race tests.
 
 Phase 08 first validates this phase's actual handoff and focused

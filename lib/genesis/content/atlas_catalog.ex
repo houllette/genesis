@@ -1,10 +1,10 @@
 defmodule Genesis.Content.AtlasCatalog do
   @moduledoc "Read-through atlas identity: names and owning locations come from validated scoped snapshots."
   import Ecto.Query
+  alias Genesis.Content.NetworkCatalog
   alias Genesis.Core.State
   alias Genesis.Persistence.{Snapshot, Snapshots}
   alias Genesis.Repo
-  alias Genesis.Worlds
 
   @spec published(world :: map(), viewer :: map()) :: {:ok, [map()]} | {:error, atom()}
   def published(world, viewer) do
@@ -42,6 +42,7 @@ defmodule Genesis.Content.AtlasCatalog do
       visibility: row.visibility,
       campaign_id: row.campaign_id,
       editable: true,
+      source_ids: [],
       zone_id: nil
     }
   end
@@ -61,7 +62,17 @@ defmodule Genesis.Content.AtlasCatalog do
     [runtime_record("zone", view.zone_id, view.name, view.description, view.zone_id)] ++
       Enum.map(view.actors, &runtime_record("actor", &1.id, &1.name, "", view.zone_id)) ++
       Enum.map(view.items, &runtime_record("item", &1.id, &1.name, "", view.zone_id)) ++
-      institution(view)
+      institution(view) ++
+      Enum.map(view.knowledge, fn record ->
+        runtime_record(
+          "knowledge",
+          record.id,
+          "#{record.kind}: #{record.predicate}",
+          to_string(record.value),
+          view.zone_id
+        )
+        |> Map.put(:source_ids, Map.get(record, :source_ids, []))
+      end)
   end
 
   defp institution(%{settlement: nil}), do: []
@@ -72,7 +83,7 @@ defmodule Genesis.Content.AtlasCatalog do
     [
       runtime_record(
         "institution",
-        Worlds.named_id([view.scope.world_id, "institution", view.zone_id, settlement["id"]]),
+        NetworkCatalog.institution_id(view.scope.world_id, view.zone_id, settlement["id"]),
         settlement["name"],
         "Local institution; stock, affiliations and policy remain with its place.",
         view.zone_id
@@ -98,6 +109,7 @@ defmodule Genesis.Content.AtlasCatalog do
       visibility: nil,
       campaign_id: nil,
       editable: false,
+      source_ids: [],
       zone_id: zone
     }
 

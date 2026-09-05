@@ -22,7 +22,7 @@ defmodule Genesis.Persistence.Codec do
     durability durable ephemeral deadline remaining_ms policy_version risk accepted format after before
     participants causal_parent_ids causal_root_id affected_ids operator_id gathering_id plan_id step_index
     direct confirm event_ids user_id snapshot_id pause resume ready step persona description
-    local_rules settlement commodity record_id accounting)a
+    local_rules settlement commodity record_id accounting actor_refs companion_policy commitment)a
   @atom_lookup Map.new(@atoms, &{Atom.to_string(&1), &1})
 
   @spec dump(value :: term()) :: {:ok, map()} | {:error, atom()}
@@ -166,7 +166,8 @@ defmodule Genesis.Persistence.Codec do
     end)
   end
 
-  defp optional_fields(State), do: [:local_rules, :settlement]
+  defp optional_fields(State), do: [:local_rules, :settlement, :actor_refs]
+  defp optional_fields(Actor), do: [:companion_policy, :commitment]
   defp optional_fields(Item), do: [:commodity]
   defp optional_fields(_module), do: []
 end

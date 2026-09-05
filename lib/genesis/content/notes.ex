@@ -100,6 +100,13 @@ defmodule Genesis.Content.Notes do
 
   @spec list(scope :: term(), world :: String.t(), opts :: keyword()) :: [Note.t()]
   def list(scope, world, opts \\ []) do
+    case Tx.run(world, fn _ -> {:ok, read_notes(scope, world, opts)} end) do
+      {:ok, notes} -> notes
+      _ -> []
+    end
+  end
+
+  defp read_notes(scope, world, opts) do
     with :ok <- Access.world(scope, world), {:ok, user} <- Access.user_id(scope) do
       public = Keyword.get(opts, :public, false)
 

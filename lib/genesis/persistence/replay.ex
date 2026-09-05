@@ -15,25 +15,34 @@ defmodule Genesis.Persistence.Replay do
 
   alias Genesis.Repo
 
-  @spec restore(scope :: term(), world_id :: String.t(), checkpoint_id :: String.t()) ::
+  @spec restore(
+          scope :: term(),
+          world_id :: String.t(),
+          checkpoint_id :: String.t(),
+          publication :: String.t() | nil
+        ) ::
           {:ok, map()} | {:error, term()}
-  def restore(scope, world, checkpoint) do
-    Tx.run(world, fn record ->
-      with :ok <- Access.world(scope, world, ["steward", "builder"]),
-           true <- Access.uuid?(checkpoint),
-           %Checkpoint{world_id: ^world} = checkpoint <- Repo.get(Checkpoint, checkpoint),
-           {:ok, initial} <- Codec.load_state(checkpoint.state),
-           true <- Codec.digest(initial) == checkpoint.digest,
-           :ok <- Snapshots.compatible(record, initial),
-           {:ok, replayed} <- replay_events(checkpoint, initial),
-           %Snapshot{} = snapshot <- Repo.get(Snapshot, checkpoint.snapshot_id),
-           true <- Codec.digest(replayed) == snapshot.digest do
-        {:ok, replayed}
-      else
-        {:error, _reason} = error -> error
-        _ -> {:error, :corrupt_history}
-      end
-    end)
+  def restore(scope, world, checkpoint, publication \\ nil) do
+    Tx.run(
+      world,
+      fn record ->
+        with :ok <- Access.world(scope, world, ["steward", "builder"]),
+             true <- Access.uuid?(checkpoint),
+             %Checkpoint{world_id: ^world} = checkpoint <- Repo.get(Checkpoint, checkpoint),
+             {:ok, initial} <- Codec.load_state(checkpoint.state),
+             true <- Codec.digest(initial) == checkpoint.digest,
+             :ok <- Snapshots.compatible(record, initial),
+             {:ok, replayed} <- replay_events(checkpoint, initial),
+             %Snapshot{} = snapshot <- Repo.get(Snapshot, checkpoint.snapshot_id),
+             true <- Codec.digest(replayed) == snapshot.digest do
+          {:ok, replayed}
+        else
+          {:error, _reason} = error -> error
+          _ -> {:error, :corrupt_history}
+        end
+      end,
+      publication
+    )
   end
 
   defp replay_events(checkpoint, initial) do

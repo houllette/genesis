@@ -140,9 +140,10 @@ defmodule Genesis.Persistence.IncorporationTest do
       fault = fn stage -> if stage == tags.boundary, do: exit({:injected, stage}), else: :ok end
       :sys.replace_state(world, &%{&1 | zone_opts: [fault: fault]})
 
-      assert catch_exit(
+      assert {:error, :publication_interrupted} =
                Runtime.call(ctx.owner, ctx.world.id, {:incorporate, preview.id, "publish"})
-             )
+
+      :sys.replace_state(world, &%{&1 | zone_opts: []})
 
       if tags.boundary == :before_commit do
         assert Repo.get!(Experience, ctx.experience.id).status == "ready"

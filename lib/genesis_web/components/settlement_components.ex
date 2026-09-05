@@ -280,7 +280,10 @@ defmodule GenesisWeb.SettlementComponents do
             {"Enter a restricted store", "trespass"},
             {"Report a known violation", "report"},
             {"Adjudicate a reported violation", "adjudicate"},
-            {"Record operator's supply loss", "disrupt"}
+            {"Record operator's supply loss", "disrupt"},
+            {"Invite a companion", "recruit"},
+            {"Resolve companion's response", "agree"},
+            {"Dismiss a companion", "dismiss"}
           ]}
         />
         <.input
@@ -289,7 +292,10 @@ defmodule GenesisWeb.SettlementComponents do
           label="Target"
           options={
             @actor_options ++
-              [{"Recipe: #{@local_rules["recipe"]["id"]}", @local_rules["recipe"]["id"]}]
+              if(@local_rules,
+                do: [{"Recipe: #{@local_rules["recipe"]["id"]}", @local_rules["recipe"]["id"]}],
+                else: []
+              )
           }
           prompt="Choose a target"
           required
@@ -314,6 +320,7 @@ defmodule GenesisWeb.SettlementComponents do
         />
         <p class="helper-text sm:col-span-2">
           Trade targets the market operator; offers and affiliation target the representative. Production targets the recipe; rest and supply loss target the acting character. Only the representative may adjudicate. A GM knowing a secret does not make the acting NPC know it.
+          Companion invitations target an existing NPC. Resolve their response separately: an invitation is not consent. Dismissal preserves their inventory and past relationships.
         </p>
         <button
           id="preview-local-action"
@@ -403,11 +410,25 @@ defmodule GenesisWeb.SettlementComponents do
           <details class="mt-3 text-xs text-stone-500">
             <summary>Record identity for reporting</summary><code class="break-all">{record.id}</code>
           </details>
+          <.link
+            :for={source <- Map.get(record, :source_ids, [])}
+            class="text-link mt-2 mr-3 inline-block"
+            navigate={
+              ~p"/worlds/#{@world.id}/history?#{%{source: source, experience_id: if(@experience, do: @experience.id)}}"
+            }
+          >View accepted source</.link>
         </article>
       </div>
     </section>
     <details class="rounded-xl border border-stone-200 p-5">
       <summary class="cursor-pointer font-medium">Scoped action history</summary>
+      <.link
+        id="resource-full-history"
+        class="text-link mt-3 inline-block"
+        navigate={
+          ~p"/worlds/#{@world.id}/history?#{%{experience_id: if(@experience, do: @experience.id)}}"
+        }
+      >Browse history & recognize a contribution</.link>
       <div id="resource-history" phx-update="stream" class="mt-4 space-y-3">
         <p id="empty-resource-history" class="helper-text hidden only:block">
           No visible actions in this scope.

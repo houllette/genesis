@@ -136,7 +136,7 @@ defmodule GenesisWeb.AtlasLive do
 
     assign(socket,
       editor: %{id: id, revision: revision, request: Ecto.UUID.generate(), fields: fields},
-      record_form: to_form(attrs, as: :record)
+      record_form: to_form(Map.put(attrs, "annotations", annotation_values(fields)), as: :record)
     )
     |> load()
   end
@@ -165,12 +165,7 @@ defmodule GenesisWeb.AtlasLive do
   defp normalize(attrs, saved_fields) do
     kind = attrs["kind"]
 
-    fields =
-      case kind do
-        "route" -> %{"condition" => attrs["condition"], "capacity" => integer(attrs["capacity"])}
-        "resource_site" -> %{"resource" => attrs["resource"]}
-        _ -> saved_fields
-      end
+    fields = custom_fields(kind, attrs, saved_fields)
 
     attrs
     |> Map.take(~w(kind name body visibility))
@@ -186,6 +181,69 @@ defmodule GenesisWeb.AtlasLive do
       "archived" => attrs["archived"] in [true, "true"]
     })
   end
+
+  defp custom_fields("route", attrs, _saved),
+    do: %{"condition" => attrs["condition"], "capacity" => integer(attrs["capacity"])}
+
+  defp custom_fields("resource_site", attrs, _saved), do: %{"resource" => attrs["resource"]}
+  defp custom_fields(_kind, %{"annotations" => rows}, _saved), do: annotations(rows)
+  defp custom_fields(_kind, _attrs, saved), do: saved
+
+  defp annotation_values(fields) do
+    fields
+    |> Enum.sort()
+    |> Enum.with_index()
+    |> Map.new(fn {{key, value}, index} ->
+      type =
+        cond do
+          is_boolean(value) -> "boolean"
+          is_integer(value) -> "integer"
+          true -> "text"
+        end
+
+      {Integer.to_string(index),
+       %{
+         "key" => String.replace_prefix(key, "note:", ""),
+         "type" => type,
+         "value" => to_string(value)
+       }}
+    end)
+  end
+
+  defp annotations(rows) when is_map(rows) and map_size(rows) <= 8 do
+    pairs =
+      for {_index, %{"key" => key, "type" => type, "value" => value}} <- rows,
+          is_binary(key) and is_binary(type) and is_binary(value),
+          key != "",
+          do: {"note:" <> key, annotation_value(type, value)}
+
+    if Enum.all?(rows, &annotation_row?/1) and
+         length(pairs) == length(Enum.uniq_by(pairs, &elem(&1, 0))),
+       do: Map.new(pairs),
+       else: %{"invalid" => true}
+  end
+
+  defp annotations(_rows), do: %{"invalid" => true}
+
+  defp annotation_row?({_index, %{"key" => key, "type" => type, "value" => value}}),
+    do: is_binary(key) and is_binary(type) and is_binary(value)
+
+  defp annotation_row?(_row), do: false
+
+  defp annotation_value("integer", value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} -> number
+      _ -> nil
+    end
+  end
+
+  defp annotation_value("boolean", "true"), do: true
+  defp annotation_value("boolean", "false"), do: false
+  defp annotation_value("text", value), do: value
+  defp annotation_value(_type, _value), do: nil
+
+  defp annotation(form, index, key),
+    do: get_in(form.params, ["annotations", to_string(index), key]) || ""
 
   defp blank(value) when value in [nil, ""], do: nil
   defp blank(value), do: value
@@ -383,6 +441,11 @@ defmodule GenesisWeb.AtlasLive do
                   else: "Live world identity · fields come from its owning place"}
               </p>
               <p class="mt-4 whitespace-pre-wrap break-words">{@selected.body}</p>
+              <.link
+                :for={source <- @selected.source_ids}
+                class="text-link mr-3"
+                navigate={~p"/worlds/#{@world.id}/history?#{%{source: source}}"}
+              >View accepted source</.link>
               <dl :if={@selected.fields != %{}} class="mt-4 text-sm">
                 <div :for={{key, value} <- Enum.sort(@selected.fields)}>
                   <dt class="font-medium">{key}</dt><dd>{to_string(value)}</dd>
@@ -426,7 +489,7 @@ defmodule GenesisWeb.AtlasLive do
                 {if @editor.id, do: "Edit atlas record", else: "Add an atlas record"}
               </h2>
               <p class="helper-text mb-4">
-                Link existing people, objects and institutions. Edit their live fields at their owning place. Routes here describe the setting; travel is not enabled yet.
+                Link existing people, objects and institutions. Edit their live fields at their owning place. Described routes are notes; Connections controls actual travel.
               </p>
               <.form
                 for={@record_form}
@@ -536,6 +599,40 @@ defmodule GenesisWeb.AtlasLive do
                       field={@record_form[:archived]}
                       type="checkbox"
                       label="Archive (retain identity and history)"
+                    />
+                  </div>
+                </details>
+                <details
+                  :if={@record_form[:kind].value not in ~w(route resource_site)}
+                  id="atlas-annotations"
+                  class="rounded-lg border border-stone-200 p-3"
+                >
+                  <summary class="cursor-pointer text-sm font-medium">Custom annotations</summary>
+                  <p class="helper-text my-3">
+                    Up to eight descriptive fields. These never grant items, abilities or facts. Clear a name to remove it.
+                  </p>
+                  <div :for={index <- 0..7} class="grid gap-2 sm:grid-cols-3">
+                    <.input
+                      id={"annotation-key-#{index}"}
+                      name={"record[annotations][#{index}][key]"}
+                      value={annotation(@record_form, index, "key")}
+                      label={"Field #{index + 1}"}
+                      maxlength="120"
+                    />
+                    <.input
+                      id={"annotation-type-#{index}"}
+                      name={"record[annotations][#{index}][type]"}
+                      value={annotation(@record_form, index, "type")}
+                      type="select"
+                      label="Type"
+                      options={~w(text integer boolean)}
+                    />
+                    <.input
+                      id={"annotation-value-#{index}"}
+                      name={"record[annotations][#{index}][value]"}
+                      value={annotation(@record_form, index, "value")}
+                      label="Value (true/false for boolean)"
+                      maxlength="512"
                     />
                   </div>
                 </details>

@@ -43,6 +43,7 @@ defmodule Genesis.Persistence.Snapshots do
          rules = Systems.scene_rules(bundle),
          true <- state.actions == rules.actions and state.context_rules == rules.context_rules,
          true <- state.local_rules == Map.get(rules, :local_rules),
+         true <- references_exist?(world.id, state.actor_refs || []),
          true <- state.scope.world_id == world.id and state.scope.generation == world.generation,
          true <-
            state.time.world_id == world.id and state.time.calendar_id == world.calendar_id and
@@ -53,9 +54,25 @@ defmodule Genesis.Persistence.Snapshots do
     end
   end
 
-  @spec create!(world :: World.t(), state :: State.t(), experience_id :: String.t() | nil) ::
+  defp references_exist?(_world, []), do: true
+
+  defp references_exist?(world, ids),
+    do:
+      Repo.aggregate(
+        from(e in Entity,
+          where: e.world_id == ^world and e.kind == "actor" and e.entity_id in ^ids
+        ),
+        :count
+      ) == length(ids)
+
+  @spec create!(
+          world :: World.t(),
+          state :: State.t(),
+          experience_id :: String.t() | nil,
+          base_checkpoint :: String.t() | nil
+        ) ::
           Snapshot.t()
-  def create!(world, state, experience_id \\ nil) do
+  def create!(world, state, experience_id \\ nil, base_checkpoint \\ nil) do
     snapshot =
       Tx.insert!(Snapshot, %{
         world_id: world.id,
@@ -63,6 +80,7 @@ defmodule Genesis.Persistence.Snapshots do
         scope_key: key(state.scope),
         scope_kind: Atom.to_string(state.scope.kind),
         experience_id: experience_id,
+        base_checkpoint_id: base_checkpoint,
         zone_id: state.zone_id,
         revision: state.revision,
         state: Codec.dump!(state),
@@ -97,29 +115,7 @@ defmodule Genesis.Persistence.Snapshots do
 
   @spec index!(state :: State.t()) :: :ok
   def index!(state) do
-    entities =
-      [%{kind: "zone", entity_id: state.zone_id, zone_id: state.zone_id}] ++
-        Enum.map(state.actors, fn {id, actor} ->
-          %{
-            kind: "actor",
-            entity_id: id,
-            zone_id: state.zone_id,
-            actor_kind: Atom.to_string(actor.kind)
-          }
-        end) ++
-        Enum.map(state.items, fn {id, item} ->
-          {kind, owner} = item.owner
-
-          %{
-            kind: "item",
-            entity_id: id,
-            zone_id: state.zone_id,
-            owner_kind: Atom.to_string(kind),
-            owner_id: owner
-          }
-        end)
-
-    Enum.each(entities, fn attrs ->
+    Enum.each(entities(state), fn attrs ->
       attrs = Map.put(attrs, :world_id, state.scope.world_id)
 
       case Repo.get_by(Entity,
@@ -134,6 +130,84 @@ defmodule Genesis.Persistence.Snapshots do
     end)
 
     :ok
+  end
+
+  @doc "Checks the complete published ownership index before admitting a batch publication."
+  @spec check_index(states :: [State.t()]) :: :ok | {:error, atom()}
+  def check_index([first | _] = states) do
+    zones = Enum.map(states, & &1.zone_id)
+    fields = [:kind, :entity_id, :zone_id, :owner_kind, :owner_id, :actor_kind]
+
+    expected =
+      Enum.flat_map(states, &entities/1)
+      |> Enum.map(&Map.new(fields, fn f -> {f, Map.get(&1, f)} end))
+
+    actual =
+      Repo.all(
+        from e in Entity, where: e.world_id == ^first.scope.world_id and e.zone_id in ^zones
+      )
+      |> Enum.map(&Map.take(&1, fields))
+
+    if Enum.sort(expected) == Enum.sort(actual), do: :ok, else: {:error, :stale_ownership}
+  end
+
+  @doc "Relocates existing index rows atomically; callers have validated conservation and hold the World lock."
+  @spec reindex!(before :: [State.t()], candidates :: [State.t()]) :: :ok
+  def reindex!(before, candidates) do
+    case check_index(before) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+
+    [first | _] = before
+    zones = Enum.map(before, & &1.zone_id)
+
+    for state <- candidates, attrs <- entities(state) do
+      attrs = Map.put(attrs, :world_id, first.scope.world_id)
+
+      relocate_index!(attrs, zones)
+    end
+
+    :ok
+  end
+
+  defp relocate_index!(attrs, zones) do
+    case Repo.get_by(Entity,
+           world_id: attrs.world_id,
+           kind: attrs.kind,
+           entity_id: attrs.entity_id
+         ) do
+      nil ->
+        Tx.insert!(Entity, attrs)
+
+      existing ->
+        if existing.zone_id in zones,
+          do: Tx.update!(existing, attrs),
+          else: Repo.rollback(:owned_elsewhere)
+    end
+  end
+
+  defp entities(state) do
+    [%{kind: "zone", entity_id: state.zone_id, zone_id: state.zone_id}] ++
+      Enum.map(state.actors, fn {id, actor} ->
+        %{
+          kind: "actor",
+          entity_id: id,
+          zone_id: state.zone_id,
+          actor_kind: Atom.to_string(actor.kind)
+        }
+      end) ++
+      Enum.map(state.items, fn {id, item} ->
+        {kind, owner} = item.owner
+
+        %{
+          kind: "item",
+          entity_id: id,
+          zone_id: state.zone_id,
+          owner_kind: Atom.to_string(kind),
+          owner_id: owner
+        }
+      end)
   end
 
   @spec published(world :: World.t()) :: [Snapshot.t()]

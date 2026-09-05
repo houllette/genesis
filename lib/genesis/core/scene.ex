@@ -3,6 +3,7 @@ defmodule Genesis.Core.Scene do
   alias Genesis.Core.{
     Audience,
     Check,
+    Companions,
     Context,
     FictionalTime,
     Knowledge,
@@ -16,9 +17,16 @@ defmodule Genesis.Core.Scene do
           {:ok, State.t(), [map()]} | {:error, atom()}
   def reduce(state, actor_id, intent, inputs) when is_map(intent) do
     with :ok <- envelope(state, inputs) do
-      if LocalAction.handles?(Map.get(intent, :type)),
-        do: LocalAction.reduce(state, actor_id, intent, inputs),
-        else: reduce_scene(state, actor_id, intent, inputs)
+      cond do
+        Companions.handles?(Map.get(intent, :type)) ->
+          Companions.reduce(state, actor_id, intent, inputs)
+
+        LocalAction.handles?(Map.get(intent, :type)) ->
+          LocalAction.reduce(state, actor_id, intent, inputs)
+
+        true ->
+          reduce_scene(state, actor_id, intent, inputs)
+      end
     end
   end
 
@@ -43,7 +51,10 @@ defmodule Genesis.Core.Scene do
       LocalAction.handles?(type) ->
         LocalAction.propose(state, actor_id, intent, id)
 
-      not Map.has_key?(state.actions, type) ->
+      Companions.handles?(type) ->
+        Companions.propose(state, actor_id, intent, id)
+
+      is_nil(action(state, type)) ->
         {:error, :unsupported_action}
 
       not Map.has_key?(intent, :target_id) and map_size(intent) == 1 ->
@@ -165,7 +176,7 @@ defmodule Genesis.Core.Scene do
   defp terms(state, actor_id, %{type: type, target_id: target} = intent)
        when map_size(intent) == 2 do
     with %{alive: true, retired: false} = actor <- state.actors[actor_id],
-         %{} = action <- state.actions[type],
+         %{} = action <- action(state, type),
          :ok <- target_available(state, actor_id, target, action["kind"]),
          {:ok, result} <- resolve_terms(state, actor_id, target, action),
          true <- valid_terms?(result),
@@ -180,6 +191,29 @@ defmodule Genesis.Core.Scene do
   end
 
   defp terms(_state, _actor_id, _intent), do: {:error, :unsupported_action}
+
+  # Returning a carried ordinary item is the inverse of the bundle's take
+  # capability, not an inventory editor. Commodity lots stay in owned stores.
+  defp action(state, "drop") do
+    case Enum.find_value(state.actions, &take_action/1) do
+      nil -> nil
+      take -> Map.merge(take, %{"kind" => "drop", "cost" => 0, "duration" => 0})
+    end
+  end
+
+  defp action(state, type), do: state.actions[type]
+  defp take_action({_id, %{"kind" => "take"} = action}), do: action
+  defp take_action(_entry), do: nil
+
+  defp target_available(state, actor, target, "drop") do
+    case state.items[target] do
+      %{owner: {:actor, ^actor}, commodity: nil, audience: audience} ->
+        if Audience.permits?(audience, %{actor_id: actor}), do: :ok, else: {:error, :unavailable}
+
+      _ ->
+        {:error, :unavailable}
+    end
+  end
 
   defp target_available(state, actor_id, target, "take") do
     case state.items[target] do
@@ -270,6 +304,14 @@ defmodule Genesis.Core.Scene do
 
   defp transition(state, actor_id, intent, %{"kind" => "take"}) do
     item = %{state.items[intent.target_id] | owner: {:actor, actor_id}}
+    audience = visible_audience(state, item.audience, state.actors[actor_id].audience)
+
+    {%{state | items: Map.put(state.items, item.id, item)}, %{"quantity" => item.quantity},
+     audience}
+  end
+
+  defp transition(state, actor_id, intent, %{"kind" => "drop"}) do
+    item = %{state.items[intent.target_id] | owner: {:zone, state.zone_id}}
     audience = visible_audience(state, item.audience, state.actors[actor_id].audience)
 
     {%{state | items: Map.put(state.items, item.id, item)}, %{"quantity" => item.quantity},

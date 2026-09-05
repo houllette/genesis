@@ -542,7 +542,9 @@ defmodule GenesisWeb.WorkspaceLive do
         Map.merge(Map.take(persona, ~w(temperament goal role culture motivation)), %{
           "kind" => kind,
           "name" => actor.name,
-          "visibility" => "unchanged"
+          "visibility" => "unchanged",
+          "follow_willing" => (Map.get(actor, :companion_policy) || %{})["willing"] || false,
+          "follow_trips" => (Map.get(actor, :companion_policy) || %{})["max_trips"] || 1
         })
     end
   end
@@ -567,6 +569,18 @@ defmodule GenesisWeb.WorkspaceLive do
   defp normalize_record(%{"kind" => "item"} = attrs),
     do: Map.update(attrs, "quantity", 1, &integer/1)
 
+  defp normalize_record(
+         %{"kind" => "npc", "follow_willing" => willing, "follow_trips" => trips} = attrs
+       ),
+       do:
+         attrs
+         |> Map.drop(~w(follow_willing follow_trips))
+         |> Map.put("companion_policy", %{
+           "version" => 1,
+           "willing" => willing in [true, "true"],
+           "max_trips" => integer(trips)
+         })
+
   defp normalize_record(attrs), do: attrs
   defp integer(value) when is_integer(value), do: value
 
@@ -580,6 +594,11 @@ defmodule GenesisWeb.WorkspaceLive do
   defp integer(_value), do: -1
   defp blank_nil(""), do: nil
   defp blank_nil(value), do: value
+
+  defp error_message(:publication_busy),
+    do: "Publication is installing all reviewed places. Please retry shortly."
+
+  defp error_message(:transfer_busy), do: "Travel is in progress. Retry after it finishes."
 
   defp error_message(:claimed),
     do:
@@ -652,6 +671,12 @@ defmodule GenesisWeb.WorkspaceLive do
           class="secondary-button mt-6"
           navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}/resources"}
         >Trade, production & local consequences</.link>
+        <.link
+          :if={@experience && @working && @can_manage}
+          id="experience-travel"
+          class="secondary-button mt-6"
+          navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}/travel"}
+        >Travel & visited places</.link>
         <section class="mt-12 border-t border-stone-200 pt-8">
           <h2 class="section-heading">Experiences</h2>
           <div id="experiences" phx-update="stream" class="grid gap-4 md:grid-cols-2">
@@ -690,6 +715,13 @@ defmodule GenesisWeb.WorkspaceLive do
           <summary class="cursor-pointer font-medium">
             {if @experience, do: "Experience audit", else: "Published audit"} · your authorized history
           </summary>
+          <.link
+            id="workspace-full-history"
+            class="text-link mt-3 inline-block"
+            navigate={
+              ~p"/worlds/#{@world.id}/history?#{%{experience_id: if(@experience, do: @experience.id)}}"
+            }
+          >Browse history, sources & recognition</.link>
           <div id="history" phx-update="stream" class="mt-4 space-y-3">
             <p id="empty-workspace-3" class="helper-text hidden only:block">
               No visible history in this scope.

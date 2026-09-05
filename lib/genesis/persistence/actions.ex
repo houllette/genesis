@@ -1,7 +1,20 @@
 defmodule Genesis.Persistence.Actions do
   @moduledoc "Atomic snapshot, event, receipt and outbox persistence beneath the sole Zone writer."
+  import Ecto.Query
   alias Genesis.Core.State
-  alias Genesis.Persistence.{Authority, Codec, Receipt, Snapshot, Snapshots, Transition, Tx}
+
+  alias Genesis.Persistence.{
+    Authority,
+    Codec,
+    Event,
+    Receipt,
+    Snapshot,
+    Snapshots,
+    Transfers,
+    Transition,
+    Tx
+  }
+
   alias Genesis.Repo
   alias Genesis.Time.Clock
 
@@ -28,8 +41,10 @@ defmodule Genesis.Persistence.Actions do
         ) :: {:ok, map()} | {:error, term()}
   def commit(principal, before, next, receipt, opts \\ []) do
     Tx.run(principal.scope.world_id, fn world ->
-      with {:ok, %{status: :active}} <- Authority.current(principal),
+      with {:ok, %{status: :active} = current} <- Authority.current(principal),
+           true <- current.snapshot_id == principal.snapshot_id,
            snapshot = Repo.get!(Snapshot, principal.snapshot_id),
+           :ok <- Transfers.accessible(snapshot.id),
            true <- snapshot.digest == Codec.digest(before),
            :ok <- capacity(next),
            {:ok, _validated} <- State.restore(next),
@@ -45,7 +60,13 @@ defmodule Genesis.Persistence.Actions do
   end
 
   defp capacity(next) do
-    if length(next.events) <= 200, do: :ok, else: {:error, :capacity_limit}
+    count =
+      Repo.aggregate(
+        from(e in Event, where: e.experience_id == ^next.scope.id and not is_nil(e.actor_id)),
+        :count
+      )
+
+    if count < 200 and length(next.events) <= 200, do: :ok, else: {:error, :capacity_limit}
   end
 
   defp commit_new(world, snapshot, principal, next, receipt, transition, opts) do

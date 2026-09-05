@@ -24,7 +24,10 @@ defmodule Genesis.Core.Curation do
   defp valid_attrs?(_attrs), do: false
 
   defp allowed_fields("zone"), do: ~w(kind name description)
-  defp allowed_fields("npc"), do: ~w(kind name visibility) ++ Persona.editable_fields()
+
+  defp allowed_fields("npc"),
+    do: ~w(kind name visibility companion_policy) ++ Persona.editable_fields()
+
   defp allowed_fields("pc"), do: ~w(kind name)
   defp allowed_fields("item"), do: ~w(kind name quantity visibility)
   defp allowed_fields("stock"), do: ~w(kind name commodity quantity owner_id reason)
@@ -51,6 +54,7 @@ defmodule Genesis.Core.Curation do
         | name: attrs["name"],
           revision: existing.revision + 1,
           audience: audience(attrs, existing.audience),
+          companion_policy: Map.get(attrs, "companion_policy", existing.companion_policy),
           persona: Persona.edit(id, existing.persona, attrs)
       }
 

@@ -7,23 +7,32 @@ defmodule Genesis.Engine.DurableWorld do
 
   alias Genesis.Persistence.{
     Access,
-    Actions,
     Authority,
     Curation,
     Incorporation,
     Snapshot,
-    Snapshots
+    Snapshots,
+    Transfers
   }
 
   alias Genesis.Repo
 
   @spec call(state :: map(), scope :: term(), command :: term(), caller :: pid()) ::
-          {:reply, term(), map()}
+          {:reply, term(), map()} | {:delegate, pid(), term(), map()}
   def call(state, scope, {:create_zone, attrs, request}, _caller),
     do: {:reply, Curation.create_zone(scope, state.world_id, attrs, request), state}
 
   def call(state, scope, {:atlas_save, id, revision, attrs, request}, _caller),
     do: {:reply, Atlas.persist(scope, state.world_id, id, revision, attrs, request), state}
+
+  def call(state, scope, {:network_save, revision, command, request}, _caller),
+    do:
+      {:reply, Genesis.WorldNetwork.persist(scope, state.world_id, revision, command, request),
+       state}
+
+  def call(state, scope, {:standing_report, exp, event, request}, _caller),
+    do:
+      {:reply, Genesis.WorldStandings.persist(scope, state.world_id, exp, event, request), state}
 
   def call(state, scope, {:curate, zone_id, operation}, _caller) do
     published =
@@ -33,7 +42,7 @@ defmodule Genesis.Engine.DurableWorld do
          true <- Scope.id?(zone_id),
          %Snapshot{} = snapshot <- Snapshots.find(state.world_id, published, zone_id),
          {:ok, zone, state} <- zone(state, snapshot) do
-      {:reply, GenServer.call(zone, {:curate, scope, operation}, 10_000), state}
+      {:delegate, zone, {:curate, scope, operation}, state}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
       _ -> {:reply, {:error, :unavailable}, state}
@@ -43,6 +52,7 @@ defmodule Genesis.Engine.DurableWorld do
   def call(state, scope, {:open, experience, actor, consumer}, consumer) do
     with {:ok, principal, snapshot} <-
            Authority.principal(scope, state.world_id, experience, actor),
+         :ok <- Transfers.accessible(snapshot.id),
          {:ok, zone, state} <- zone(state, snapshot),
          true <- map_size(state.grants) < 256 do
       token = make_ref()
@@ -50,7 +60,7 @@ defmodule Genesis.Engine.DurableWorld do
       result =
         DynamicSupervisor.start_child(
           state.workers,
-          {Session, world: self(), zone: zone, token: token, consumer: consumer}
+          {Session, world: self(), durable: true, zone: zone, token: token, consumer: consumer}
         )
 
       remember_session(result, state, token, principal)
@@ -61,12 +71,15 @@ defmodule Genesis.Engine.DurableWorld do
   end
 
   def call(state, scope, {:status, experience, action, revision, request}, _caller) do
-    with {:ok, _exp} <- Experiences.get(scope, state.world_id, experience, ["gm"]),
+    with {:ok, exp} <- Experiences.get(scope, state.world_id, experience, ["gm"]),
          %Snapshot{} = snapshot <-
-           Repo.get_by(Snapshot, world_id: state.world_id, experience_id: experience),
+           Repo.get_by(Snapshot,
+             world_id: state.world_id,
+             experience_id: experience,
+             zone_id: exp.zone_id
+           ),
          {:ok, zone, state} <- zone(state, snapshot) do
-      reply = GenServer.call(zone, {:control, scope, action, revision, request}, 10_000)
-      {:reply, reply, state}
+      {:delegate, zone, {:control, scope, action, revision, request}, state}
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
       _ -> {:reply, {:error, :unavailable}, state}
@@ -81,7 +94,8 @@ defmodule Genesis.Engine.DurableWorld do
         id: prepared.id,
         elapsed_seconds: 0,
         source_events: length(prepared.sources),
-        zone_id: prepared.candidate.zone_id
+        zone_id: prepared.experience.zone_id,
+        zone_ids: Enum.map(prepared.zones, & &1.candidate.zone_id)
       }
 
       {:reply, {:ok, reply},
@@ -89,14 +103,6 @@ defmodule Genesis.Engine.DurableWorld do
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
       _ -> {:reply, {:error, :capacity_limit}, state}
-    end
-  end
-
-  def call(state, scope, {:incorporate, preview, request}, _caller) do
-    case Incorporation.receipt(scope, state.world_id, preview, request) do
-      {:ok, result} -> {:reply, {:ok, result}, state}
-      :new -> publish(state, scope, preview, request)
-      error -> {:reply, error, state}
     end
   end
 
@@ -109,26 +115,10 @@ defmodule Genesis.Engine.DurableWorld do
        %{
          state
          | grants: Map.put(state.grants, token, principal),
-           sessions: Map.put(state.sessions, Process.monitor(pid), token)
+           sessions: Map.put(state.sessions, Process.monitor(pid), %{token: token, pid: pid})
        }}
 
   defp remember_session(error, state, _token, _principal), do: {:reply, error, state}
-
-  defp publish(state, scope, preview, request) do
-    with {:ok, user} <- Access.user_id(scope),
-         %{} = prepared <- state.previews[{user, preview}],
-         {:ok, zone, state} <- zone(state, prepared.published_snapshot),
-         {:ok, result} <-
-           Incorporation.publish(scope, state.world_id, prepared, request, state.zone_opts) do
-      Actions.fault(state.zone_opts, :after_commit)
-      :ok = GenServer.call(zone, :install_committed)
-      Actions.fault(state.zone_opts, :after_install)
-      {:reply, {:ok, result}, %{state | previews: Map.delete(state.previews, {user, preview})}}
-    else
-      {:error, reason} -> {:reply, {:error, reason}, state}
-      _ -> {:reply, {:error, :stale_preview}, state}
-    end
-  end
 
   @spec zone(state :: map(), snapshot :: map()) :: {:ok, pid(), map()} | {:error, term()}
   def zone(state, snapshot) do

@@ -4,7 +4,7 @@ defmodule Genesis.Content do
   alias Genesis.Content.Notes
   alias Genesis.Core.{Scope, State}
   alias Genesis.Engine.Runtime
-  alias Genesis.Persistence.{Access, Curation, Draft, Snapshot, Snapshots}
+  alias Genesis.Persistence.{Access, Curation, Draft, Snapshot, Snapshots, Tx}
   alias Genesis.{Repo, Worlds}
 
   @spec create_zone(scope :: term(), world :: String.t(), attrs :: map(), request :: String.t()) ::
@@ -48,6 +48,10 @@ defmodule Genesis.Content do
   end
 
   defp scene(scope, world_id, zone) do
+    Tx.run(world_id, fn _ -> read_scene(scope, world_id, zone) end)
+  end
+
+  defp read_scene(scope, world_id, zone) do
     with {:ok, world} <- Worlds.get_world(scope, world_id),
          true <- Scope.id?(zone),
          %Snapshot{} = snapshot <-
@@ -65,8 +69,14 @@ defmodule Genesis.Content do
 
   @spec list_zones(scope :: term(), world :: String.t()) :: [map()]
   def list_zones(scope, world_id) do
-    case Worlds.get_world(scope, world_id) do
-      {:ok, world} -> world |> Snapshots.published() |> Enum.map(&zone_summary/1)
+    result =
+      Tx.run(world_id, fn _ ->
+        with {:ok, world} <- Worlds.get_world(scope, world_id),
+             do: {:ok, world |> Snapshots.published() |> Enum.map(&zone_summary/1)}
+      end)
+
+    case result do
+      {:ok, zones} -> zones
       _ -> []
     end
   end

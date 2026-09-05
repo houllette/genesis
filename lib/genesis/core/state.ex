@@ -1,17 +1,16 @@
 defmodule Genesis.Core.State do
   @moduledoc "Pure zone state. Constructors validate trusted fixture/boundary values before reduction."
-  alias Genesis.Core.{
-    Action,
-    Actor,
-    Audience,
-    Context,
-    FictionalTime,
-    Item,
-    Knowledge,
-    Persona,
-    Scope,
-    Settlement
-  }
+  alias Genesis.Core.Action
+  alias Genesis.Core.Actor
+  alias Genesis.Core.Audience
+  alias Genesis.Core.Companions
+  alias Genesis.Core.Context
+  alias Genesis.Core.FictionalTime
+  alias Genesis.Core.Item
+  alias Genesis.Core.Knowledge
+  alias Genesis.Core.Persona
+  alias Genesis.Core.Scope
+  alias Genesis.Core.Settlement
 
   @enforce_keys [:scope, :zone_id, :time]
   alias Genesis.Systems.LocalRules
@@ -23,6 +22,7 @@ defmodule Genesis.Core.State do
     :rules_ref,
     :local_rules,
     :settlement,
+    :actor_refs,
     name: nil,
     description: "",
     actors: %{},
@@ -43,6 +43,7 @@ defmodule Genesis.Core.State do
           rules_ref: term(),
           local_rules: map() | nil,
           settlement: map() | nil,
+          actor_refs: [String.t()] | nil,
           name: String.t() | nil,
           description: String.t(),
           actors: map(),
@@ -63,10 +64,7 @@ defmodule Genesis.Core.State do
     knowledge = Map.get(attrs, :knowledge, [])
 
     if valid_header?(attrs, scope, zone, time) and valid_collections?(actors, items, knowledge) and
-         Enum.all?(actors, &valid_actor?/1) and
-         Enum.all?(items, &valid_item?(&1, actors, zone)) and
-         Enum.all?(knowledge, &valid_knowledge?(&1, scope, actors)) and
-         Enum.all?(actors, &valid_companion?(&1, actors)) and
+         entities_valid?(attrs, actors, items, knowledge) and
          local?(attrs, actors, items) do
       {:ok,
        struct(
@@ -83,6 +81,17 @@ defmodule Genesis.Core.State do
   end
 
   def new(_attrs), do: {:error, :invalid_state}
+
+  defp entities_valid?(attrs, actors, items, knowledge) do
+    Enum.all?(actors, &valid_actor?/1) and
+      Enum.all?(items, &valid_item?(&1, actors, attrs.zone_id)) and
+      references?(Map.get(attrs, :actor_refs), actors, knowledge) and
+      Enum.all?(
+        knowledge,
+        &valid_knowledge?(&1, attrs.scope, actors, Map.get(attrs, :actor_refs) || [])
+      ) and
+      Enum.all?(actors, &valid_companion?(&1, actors))
+  end
 
   @doc "Validates a decoded checkpoint without resetting its revisions or elapsed time."
   @spec restore(value :: term()) :: {:ok, t()} | {:error, :invalid_state}
@@ -180,6 +189,7 @@ defmodule Genesis.Core.State do
       :rules_ref,
       :local_rules,
       :settlement,
+      :actor_refs,
       :name,
       :description,
       :actors,
@@ -235,7 +245,9 @@ defmodule Genesis.Core.State do
 
   defp valid_actor?(_actor), do: false
 
-  defp actor_details?(actor), do: numeric_map?(actor.resources) and Persona.valid?(actor.persona)
+  defp actor_details?(actor),
+    do:
+      numeric_map?(actor.resources) and Persona.valid?(actor.persona) and Companions.valid?(actor)
 
   defp materialize_actor(%Actor{kind: :npc} = actor),
     do: %{actor | persona: Persona.materialize(actor.id, actor.persona)}
@@ -277,14 +289,14 @@ defmodule Genesis.Core.State do
   end
 
   defp local_item?(%{commodity: nil}, _rules, _settlement), do: true
-  defp local_item?(_item, _rules, nil), do: false
+  defp local_item?(_item, nil, _settlement), do: false
 
-  defp local_item?(item, rules, settlement) do
+  defp local_item?(item, rules, _settlement) do
+    # A market controls exchange and issuance, not whether a traveler can carry
+    # a ruleset-defined commodity through a place without a market.
     Map.has_key?(rules["commodities"], item.commodity) and
       item.name == rules["commodities"][item.commodity] and
-      match?({:actor, _id}, item.owner) and (settlement["enabled"] or item.quantity == 0) and
-      (item.commodity != rules["currency"] or item.quantity == 0 or
-         settlement["profile"]["exchange"] == "currency")
+      match?({:actor, _id}, item.owner)
   end
 
   defp balances_bounded?(items) do
@@ -304,18 +316,35 @@ defmodule Genesis.Core.State do
 
   defp valid_companion?(_actor, _actors), do: false
 
-  defp valid_knowledge?(%Knowledge{} = record, scope, actors) do
+  defp valid_knowledge?(%Knowledge{} = record, scope, actors, refs) do
     record.kind in Knowledge.kinds() and record.scope == scope and record.version == 1 and
       Scope.id?(record.predicate) and scalar?(record.value) and Audience.valid?(record.audience) and
-      knowledge_owners?(record, actors) and provenance?(record)
+      knowledge_owners?(record, actors, refs) and provenance?(record)
   end
 
-  defp valid_knowledge?(_record, _scope, _actors), do: false
+  defp valid_knowledge?(_record, _scope, _actors, _refs), do: false
 
-  defp knowledge_owners?(record, actors),
+  defp knowledge_owners?(record, actors, refs),
     do:
       Enum.any?(actors, &(&1.id == record.subject_id)) and
-        (is_nil(record.object_id) or Enum.any?(actors, &(&1.id == record.object_id)))
+        (is_nil(record.object_id) or record.object_id in refs or
+           Enum.any?(actors, &(&1.id == record.object_id)))
+
+  # References carry identity only, never inventory, presence, skills or authority.
+  # The shell validates their existence and claims across the whole footprint.
+  defp references?(refs, actors, knowledge) do
+    ids = Enum.map(actors, & &1.id)
+
+    required =
+      knowledge
+      |> Enum.map(&Map.get(&1, :object_id))
+      |> Enum.reject(&(&1 == nil or &1 in ids))
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    refs = if is_nil(refs), do: [], else: refs
+    is_list(refs) and length(refs) <= 500 and Enum.all?(refs, &Scope.id?/1) and refs == required
+  end
 
   defp provenance?(record),
     do:
@@ -355,7 +384,7 @@ defmodule Genesis.Core.State do
   defp visible_knowledge?(record, viewer, actor_ids),
     do:
       Audience.permits?(record.audience, viewer) and record.subject_id in actor_ids and
-        (is_nil(record.object_id) or record.object_id in actor_ids)
+        (is_nil(record.object_id) or record.object_id in actor_ids or viewer[:role] == :gm)
 
   defp actor_view(actor, %{role: :gm}), do: Map.from_struct(actor)
 

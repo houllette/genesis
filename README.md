@@ -30,15 +30,56 @@ Create a world with a **local systems** ruleset, then use a place's resource
 controls and an Experience's working resource controls. Original demo worlds
 retain their pinned rules; they are not silently upgraded.
 
-[Phase 07A](docs/implementation/07-world-zones/handoff.md) adds a searchable,
+Published `10c54f6` implements [phase 07A](docs/implementation/07-world-zones/handoff.md): a searchable,
 linked atlas at `/worlds/:world_id/atlas`, reached from the world workspace.
 Run `mix ecto.migrate` for the additive atlas table. Regions, lore and directed
 links are authored references; existing people, objects and institutions are
 read through their owning places. Records can be GM-only, world-visible or
 campaign-scoped. New NPCs have stable, dormant persona defaults; old snapshots
-are not rewritten. Routes are descriptive only. Transfers, global standings,
-companions and cross-zone recovery remain phase 07B; full time reconciliation
-(08), AI and player play surfaces remain later phases.
+are not rewritten. Atlas routes are descriptive only.
+
+The bounded **07B** slice adds `/worlds/:world_id/connections`: directed
+World-owned links with condition/capacity checks, plus registration of existing
+institutions and their declared jurisdictions. Run `mix ecto.migrate` for the
+additive `world_networks` table. Edits during an open window are drafts. Checks
+do not move actors or reserve destinations; jurisdictions do not spread private
+knowledge or enforce remote policy. Local stock, affiliations and receipts stay
+unchanged.
+
+**07C1** adds an Experience's **Travel & visited places** screen. It moves one
+bound participating PC, all carried inventory and self-contained beliefs through
+an eligible directed connection. Movement is durable, retryable and recovered
+after interrupted coordination; published places and fictional time are unchanged.
+Run `mix ecto.migrate` for scoped transfer/reservation tables and per-place bases.
+Its initial single-PC restriction is superseded by 07D below; zero elapsed time
+remains required. Visited-place claims survive return trips, pause and aborted
+travel. Full time reconciliation (08), AI and player play surfaces remain later phases.
+
+**07C2** adds **Review all outcomes** on an Experience. Review every visited
+place, seal the complete footprint, then explicitly preview and confirm publication
+as a world steward. This supports **one Experience, up to eight places, with zero
+elapsed fictional time**. Sealing stops play, retains claims and currently cannot
+be undone. Publication updates all places, ownership and source-linked history
+atomically; an interrupted confirmation can safely retry its exact identity.
+Run `mix ecto.migrate` for the additive `incorporation_operations` ledger. Its
+world-wide fence blocks reads/admission/edits until caches are installed or safely
+made cold after a crash. This is not phase-08 time reconciliation.
+
+**07D** completes the remaining Phase 07 implementation. Existing NPCs can be
+invited, deterministically agree/refuse, and be dismissed without losing their
+history or inventory. Set willingness and a 1–8-trip commitment in the NPC editor;
+use the Experience resource action controls to invite/resolve/dismiss. Travel
+moves the entire eligible party atomically (up to eight actors). An optional
+arrival exchange buys, sells, barters or contributes carried goods at the destination
+within that same transaction; it is a real courier journey, not remote stock editing.
+In **History & sources**, a GM can recognize an accepted institutional contribution
+once. This changes scoped standing and a relief-supported flag, not affiliation or
+universal knowledge; both publish with the Experience. The atlas exposes accepted
+knowledge sources and a collapsed typed-annotation editor. Campaign notes remain
+separate from canonical facts. Run `mix ecto.migrate` for `world_standings` and
+`global_dependencies`, then restart any already-running development server.
+Browser QA remains user-deferred. See the Phase 07 handoff for current validation;
+these working-tree changes have not been committed or pushed.
 Never use the ephemeral fixture mode for real adventures.
 
 The [living-history contract](docs/implementation/living-history-and-context.md)

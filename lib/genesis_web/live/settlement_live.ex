@@ -1,10 +1,17 @@
 defmodule GenesisWeb.SettlementLive do
   use GenesisWeb, :live_view
   import GenesisWeb.SettlementComponents
-  alias Genesis.{Content, Experiences, Workspace, Worlds}
-  alias Genesis.Core.{Audience, LocalAction}
-  alias Genesis.Engine.{Runtime, Session}
-  alias Genesis.Persistence.{Access, History}
+  alias Genesis.Content
+  alias Genesis.Core.Audience
+  alias Genesis.Core.Companions
+  alias Genesis.Core.LocalAction
+  alias Genesis.Engine.Runtime
+  alias Genesis.Engine.Session
+  alias Genesis.Experiences
+  alias Genesis.Persistence.Access
+  alias Genesis.Persistence.History
+  alias Genesis.Workspace
+  alias Genesis.Worlds
 
   @quantity_actions ~w(buy sell barter produce offer disrupt)
 
@@ -263,9 +270,10 @@ defmodule GenesisWeb.SettlementLive do
           do: Map.put(intent, :record_id, attrs["record_id"]),
           else: intent
 
-      if LocalAction.valid_intent?(intent),
-        do: {:ok, attrs["actor_id"], intent},
-        else: {:error, :invalid_request}
+      if LocalAction.valid_intent?(intent) or
+           (map_size(intent) == 2 and Companions.handles?(intent.type)),
+         do: {:ok, attrs["actor_id"], intent},
+         else: {:error, :invalid_request}
     else
       {:error, :invalid_request}
     end
@@ -332,9 +340,9 @@ defmodule GenesisWeb.SettlementLive do
          do: {:ok, %{scene: scene, experience: nil}}
   end
 
-  defp selection(scope, world, %{"experience_id" => exp}) do
+  defp selection(scope, world, %{"experience_id" => exp} = params) do
     with {:ok, experience} <- Experiences.get(scope, world, exp, ["gm"]),
-         {:ok, scene} <- Workspace.experience_view(scope, world, exp),
+         {:ok, scene} <- Workspace.experience_view(scope, world, exp, params["zone"]),
          do: {:ok, %{scene: scene, experience: experience}}
   end
 
@@ -509,13 +517,19 @@ defmodule GenesisWeb.SettlementLive do
             navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}"}
             class="text-link"
           >{@experience.name}</.link>
+          <.link
+            :if={@experience}
+            id="resource-travel"
+            navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}/travel"}
+            class="text-link"
+          >Travel & visited places</.link>
         </nav>
         <header class="mb-8">
           <p class="eyebrow">Finite resources · lasting obligations</p><h1 class="display-title">
             Resources & institutions
           </h1>
           <p id="resource-scope" class="lede mt-4">
-            {if @experience, do: "Working · #{@experience.status}", else: "Published"} · fictional coordinate {@scene.time.value}s
+            {if @experience, do: "Working · #{@experience.status}", else: "Published"} · {@scene.name} · fictional coordinate {@scene.time.value}s
           </p>
         </header>
         <p :if={!@local_rules} id="local-unavailable" class="notice">
@@ -527,9 +541,9 @@ defmodule GenesisWeb.SettlementLive do
           </aside>
           <.settlement_summary :if={@scene.settlement} {assigns} />
           <.settlement_editor :if={@live_action == :edit} {assigns} />
-          <.settlement_actions :if={@live_action == :run && @scene.settlement} {assigns} />
           <.settlement_records {assigns} />
         </div>
+        <.settlement_actions :if={@live_action == :run} {assigns} />
       </div>
     </Layouts.app>
     """

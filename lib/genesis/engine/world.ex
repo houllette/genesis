@@ -2,9 +2,19 @@ defmodule Genesis.Engine.World do
   @moduledoc "World ownership, scoped grants and orchestration; persistent mode revalidates durable membership."
   use GenServer
   alias Genesis.Core.{Scope, State}
-  alias Genesis.Engine.{DurableWorld, Session, Zone}
+
+  alias Genesis.Engine.{
+    CommandCoordinator,
+    DurableWorld,
+    PublicationCoordinator,
+    Session,
+    TransferCoordinator,
+    Zone
+  }
+
   alias Genesis.Engine.Supervisor, as: Lookup
-  alias Genesis.Persistence.Authority
+  alias Genesis.Persistence.{Access, Authority, Incorporation, Snapshot, Snapshots, Transfers}
+  alias Genesis.Repo
 
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
   def start_link(opts),
@@ -58,6 +68,11 @@ defmodule Genesis.Engine.World do
 
   @impl true
   def init(opts) do
+    if Keyword.get(opts, :storage) == :postgres do
+      {:ok, :recovered} = Incorporation.recover(Keyword.fetch!(opts, :world_id))
+      {:ok, :recovered} = Transfers.recover(Keyword.fetch!(opts, :world_id))
+    end
+
     if Keyword.get(opts, :storage) == :postgres,
       do: Phoenix.PubSub.subscribe(Genesis.PubSub, "world:" <> Keyword.fetch!(opts, :world_id))
 
@@ -77,6 +92,9 @@ defmodule Genesis.Engine.World do
        zones: %{},
        grants: %{},
        sessions: %{},
+       transfers: %{},
+       publication: nil,
+       commands: %{},
        claims: %{},
        statuses: %{},
        window: nil
@@ -89,8 +107,90 @@ defmodule Genesis.Engine.World do
 
   def handle_call(:mode, _from, state), do: {:reply, state.storage, state}
 
-  def handle_call({:durable, scope, command}, {caller, _tag}, %{storage: :postgres} = state),
-    do: DurableWorld.call(state, scope, command, caller)
+  def handle_call({:durable, _scope, _command}, _from, %{publication: publication} = state)
+      when not is_nil(publication), do: {:reply, {:error, :publication_busy}, state}
+
+  def handle_call(
+        {:durable, scope, {:incorporate, preview, request}},
+        from,
+        %{storage: :postgres} = state
+      ) do
+    case Incorporation.receipt(scope, state.world_id, preview, request) do
+      {:ok, result} -> {:reply, {:ok, result}, state}
+      :new -> begin_publication(state, scope, preview, request, from)
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:publication_authorized, worker, operation}, _from, state) do
+    allowed = match?(%{pid: ^worker, operation: %{id: ^operation}}, state.publication)
+    {:reply, if(allowed, do: :ok, else: {:error, :unauthorized}), state}
+  end
+
+  def handle_call({:command_authorized, worker}, {zone, _}, state) do
+    allowed =
+      Enum.any?(state.commands, fn {_ref, entry} -> entry.pid == worker and entry.zone == zone end)
+
+    {:reply, if(allowed, do: :ok, else: {:error, :unauthorized}), state}
+  end
+
+  def handle_call({:locate_session, _token}, _from, %{publication: publication} = state)
+      when not is_nil(publication), do: {:reply, {:error, :publication_busy}, state}
+
+  def handle_call(
+        {:durable, scope, {:travel, exp, actor, token, request}},
+        from,
+        %{storage: :postgres} = state
+      ) do
+    if map_size(state.transfers) < 4 do
+      case Transfers.begin(scope, state.world_id, exp, actor, token, request) do
+        {:ok, {:done, result}} -> {:reply, {:ok, result}, state}
+        {:ok, {:prepared, op}} -> start_transfer(state, scope, op, from)
+        error -> {:reply, error, state}
+      end
+    else
+      {:reply, {:error, :transfer_busy}, state}
+    end
+  end
+
+  def handle_call({:transfer_authorized, worker, operation}, _from, state) do
+    allowed =
+      Enum.any?(state.transfers, fn {_ref, entry} ->
+        entry.pid == worker and entry.operation.id == operation
+      end)
+
+    {:reply, if(allowed, do: :ok, else: {:error, :unauthorized}), state}
+  end
+
+  def handle_call({:locate_session, token}, {caller, _}, %{storage: :postgres} = state) do
+    with true <-
+           Enum.any?(state.sessions, fn {_ref, entry} -> entry == %{pid: caller, token: token} end),
+         %{} = principal <- state.grants[token],
+         {:ok, current} <- Authority.current(principal),
+         %Snapshot{} = snapshot <- Repo.get(Snapshot, current.snapshot_id),
+         :ok <- Transfers.accessible(snapshot.id),
+         {:ok, zone, state} <- DurableWorld.zone(state, snapshot) do
+      {:reply, {:ok, zone}, %{state | grants: Map.put(state.grants, token, current)}}
+    else
+      {:error, _} = error -> {:reply, error, state}
+      _ -> {:reply, {:error, :unauthorized}, state}
+    end
+  end
+
+  def handle_call(
+        {:durable, scope, command},
+        {caller, _tag} = from,
+        %{storage: :postgres} = state
+      ) do
+    if map_size(state.commands) < 16 do
+      case DurableWorld.call(state, scope, command, caller) do
+        {:delegate, zone, operation, state} -> start_command(state, zone, operation, from)
+        reply -> reply
+      end
+    else
+      {:reply, {:error, :capacity_limit}, state}
+    end
+  end
 
   def handle_call({:authorize, token, scope, zone}, _from, state),
     do: {:reply, authorization(state, token, scope, zone), state}
@@ -119,13 +219,78 @@ defmodule Genesis.Engine.World do
   def handle_call(_request, _from, state), do: {:reply, {:error, :unauthorized}, state}
 
   @impl true
+  def handle_info({:publication_done, pid, result}, %{publication: %{pid: pid} = entry} = state) do
+    if not match?({:ok, _}, result), do: recover_publication(state)
+    GenServer.reply(entry.from, result)
+    Process.demonitor(entry.monitor, [:flush])
+
+    previews =
+      if match?({:ok, _}, result),
+        do: Map.delete(state.previews, entry.preview_key),
+        else: state.previews
+
+    {:noreply, %{state | publication: nil, previews: previews}}
+  end
+
+  def handle_info({:command_done, pid, result}, state) do
+    case Enum.find(state.commands, fn {_ref, entry} -> entry.pid == pid end) do
+      {ref, entry} ->
+        GenServer.reply(entry.from, result)
+        Process.demonitor(ref, [:flush])
+        {:noreply, %{state | commands: Map.delete(state.commands, ref)}}
+
+      nil ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state)
+      when is_map_key(state.commands, ref) do
+    entry = state.commands[ref]
+    DynamicSupervisor.terminate_child(state.workers, entry.zone)
+    GenServer.reply(entry.from, {:error, :command_interrupted})
+    {:noreply, %{state | commands: Map.delete(state.commands, ref)}}
+  end
+
+  def handle_info(
+        {:DOWN, ref, :process, _pid, _reason},
+        %{publication: %{monitor: ref} = entry} = state
+      ) do
+    recover_publication(state)
+    GenServer.reply(entry.from, {:error, :publication_interrupted})
+    {:noreply, %{state | publication: nil}}
+  end
+
+  def handle_info({:transfer_done, pid, result}, state) do
+    case Enum.find(state.transfers, fn {_ref, entry} -> entry.pid == pid end) do
+      {ref, entry} ->
+        if not match?({:ok, _}, result), do: recover_transfer(state, entry)
+        notify_transfer_sessions(state, entry.operation)
+        GenServer.reply(entry.from, result)
+        Process.demonitor(ref, [:flush])
+        {:noreply, %{state | transfers: Map.delete(state.transfers, ref)}}
+
+      nil ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state)
+      when is_map_key(state.transfers, ref) do
+    entry = state.transfers[ref]
+    recover_transfer(state, entry)
+    GenServer.reply(entry.from, {:error, :transfer_interrupted})
+    {:noreply, %{state | transfers: Map.delete(state.transfers, ref)}}
+  end
+
   def handle_info({:DOWN, monitor, :process, _pid, _reason}, state) do
     zones =
       Map.new(state.zones, fn {key, entry} ->
         {key, if(entry.monitor == monitor, do: %{entry | pid: nil}, else: entry)}
       end)
 
-    {token, sessions} = Map.pop(state.sessions, monitor)
+    {session, sessions} = Map.pop(state.sessions, monitor)
+    token = if is_map(session), do: session.token, else: session
 
     {:noreply,
      %{state | zones: zones, sessions: sessions, grants: Map.delete(state.grants, token)}}
@@ -292,8 +457,10 @@ defmodule Genesis.Engine.World do
   end
 
   defp authorization(%{storage: :postgres} = state, token, scope, zone) do
-    case state.grants[token] do
-      %{scope: ^scope, zone_id: ^zone} = principal -> Authority.current(principal)
+    with %{scope: ^scope} = principal <- state.grants[token],
+         {:ok, %{zone_id: ^zone} = current} <- Authority.current(principal) do
+      {:ok, current}
+    else
       _ -> {:error, :unauthorized}
     end
   end
@@ -305,6 +472,133 @@ defmodule Genesis.Engine.World do
 
       _ ->
         {:error, :unauthorized}
+    end
+  end
+
+  defp start_transfer(state, scope, op, from) do
+    with {:ok, source, state} <-
+           DurableWorld.zone(state, Repo.get!(Snapshot, op.source_snapshot_id)),
+         {:ok, destination, state} <-
+           DurableWorld.zone(state, Repo.get!(Snapshot, op.destination_snapshot_id)),
+         {:ok, pid} <-
+           DynamicSupervisor.start_child(
+             state.workers,
+             {TransferCoordinator,
+              world: self(),
+              scope: scope,
+              operation: op,
+              source: source,
+              destination: destination,
+              opts: state.zone_opts}
+           ) do
+      entry = %{pid: pid, operation: op, from: from, zones: [source, destination]}
+      {:noreply, %{state | transfers: Map.put(state.transfers, Process.monitor(pid), entry)}}
+    else
+      error ->
+        # A partial start never installed candidate state. All caches refresh
+        # from durable snapshots, but terminate any affected cache before unlock.
+        stop_transfer_zones(state, op)
+        {:ok, :recovered} = Transfers.recover(state.world_id, op.id)
+        {:reply, error, state}
+    end
+  end
+
+  defp start_command(state, zone, command, from) do
+    case DynamicSupervisor.start_child(
+           state.workers,
+           {CommandCoordinator, world: self(), zone: zone, command: command}
+         ) do
+      {:ok, pid} ->
+        entry = %{pid: pid, zone: zone, from: from}
+        {:noreply, %{state | commands: Map.put(state.commands, Process.monitor(pid), entry)}}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  defp begin_publication(state, scope, preview, request, from) do
+    with {:ok, user} <- Access.user_id(scope),
+         %{} = prepared <- state.previews[{user, preview}],
+         {:ok, op} <- Incorporation.begin(scope, state.world_id, prepared, request) do
+      start_publication(state, scope, prepared, op, from, {user, preview})
+    else
+      {:error, _} = error -> {:reply, error, state}
+      _ -> {:reply, {:error, :stale_preview}, state}
+    end
+  end
+
+  defp start_publication(state, scope, prepared, op, from, key) do
+    started =
+      Enum.reduce_while(prepared.zones, {:ok, state, []}, fn zone, {:ok, current, zones} ->
+        case DurableWorld.zone(current, zone.published_snapshot) do
+          {:ok, pid, next} -> {:cont, {:ok, next, zones ++ [{pid, zone.candidate}]}}
+          error -> {:halt, error}
+        end
+      end)
+
+    with {:ok, state, zones} <- started,
+         {:ok, pid} <-
+           DynamicSupervisor.start_child(
+             state.workers,
+             {PublicationCoordinator,
+              world: self(), scope: scope, operation: op, zones: zones, opts: state.zone_opts}
+           ) do
+      entry = %{
+        pid: pid,
+        monitor: Process.monitor(pid),
+        operation: op,
+        zones: zones,
+        from: from,
+        preview_key: key
+      }
+
+      {:noreply, %{state | publication: entry}}
+    else
+      error ->
+        stop_publication_zones(state, op)
+        {:ok, :recovered} = Incorporation.recover(state.world_id)
+        {:reply, error, state}
+    end
+  end
+
+  defp recover_publication(state) do
+    stop_publication_zones(state, state.publication.operation)
+    {:ok, :recovered} = Incorporation.recover(state.world_id)
+  end
+
+  defp stop_publication_zones(state, op) do
+    for zone <- op.manifest["zones"] do
+      row = Repo.get!(Snapshot, zone["published_snapshot_id"])
+      {:ok, scene} = Snapshots.load(row)
+      name = Lookup.via(state.registry, {:zone, {Scope.key(scene.scope), scene.zone_id}})
+      if pid = GenServer.whereis(name), do: DynamicSupervisor.terminate_child(state.workers, pid)
+    end
+  end
+
+  defp recover_transfer(state, entry) do
+    Enum.each(entry.zones, &DynamicSupervisor.terminate_child(state.workers, &1))
+    {:ok, :recovered} = Transfers.recover(state.world_id, entry.operation.id)
+  end
+
+  defp notify_transfer_sessions(state, op) do
+    for {_ref, %{pid: pid, token: token}} <- state.sessions do
+      case state.grants[token] do
+        %{snapshot_id: id} when id in [op.source_snapshot_id, op.destination_snapshot_id] ->
+          send(pid, {:travel_changed, self()})
+
+        _ ->
+          :ok
+      end
+    end
+  end
+
+  defp stop_transfer_zones(state, op) do
+    for id <- [op.source_snapshot_id, op.destination_snapshot_id] do
+      row = Repo.get!(Snapshot, id)
+      {:ok, scene} = Snapshots.load(row)
+      name = Lookup.via(state.registry, {:zone, {Scope.key(scene.scope), scene.zone_id}})
+      if pid = GenServer.whereis(name), do: DynamicSupervisor.terminate_child(state.workers, pid)
     end
   end
 

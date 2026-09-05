@@ -4,7 +4,17 @@ defmodule Genesis.Persistence.Authority do
   alias Genesis.Accounts.{Scope, User}
   alias Genesis.Core.Audience
   alias Genesis.Experiences
-  alias Genesis.Persistence.{Access, Binding, CampaignMember, Snapshot, Snapshots, WorldMember}
+
+  alias Genesis.Persistence.{
+    Access,
+    Binding,
+    CampaignMember,
+    Footprints,
+    Snapshot,
+    Snapshots,
+    WorldMember
+  }
+
   alias Genesis.Repo
 
   @spec principal(
@@ -17,7 +27,7 @@ defmodule Genesis.Persistence.Authority do
     with {:ok, exp} <- Experiences.get(scope, world, experience),
          true <- exp.status in ["active", "paused", "ready"],
          {:ok, user} <- Access.user_id(scope),
-         %Snapshot{} = snapshot <- Repo.get_by(Snapshot, world_id: world, experience_id: exp.id),
+         {:ok, snapshot} <- Footprints.actor_snapshot(exp, actor),
          {:ok, state} <- Snapshots.load(snapshot),
          {:ok, role} <- role(scope, exp, user, actor, state) do
       {:ok,

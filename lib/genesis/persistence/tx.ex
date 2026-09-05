@@ -2,24 +2,53 @@ defmodule Genesis.Persistence.Tx do
   @moduledoc "Short world-row transactions allocate commit-ordered cursors; no callbacks to live authority."
   import Ecto.Query
   alias Genesis.Core.Scope
-  alias Genesis.Persistence.{Access, Codec, DeliverEvent, Event, Outbox, Receipt, World}
+
+  alias Genesis.Persistence.{
+    Access,
+    Codec,
+    DeliverEvent,
+    Event,
+    Outbox,
+    Publication,
+    Receipt,
+    World
+  }
+
   alias Genesis.Repo
   alias Genesis.Time.Clock
 
-  @spec run(world_id :: String.t(), fun :: (World.t() -> {:ok, term()} | {:error, term()})) ::
+  @spec run(
+          world_id :: String.t(),
+          fun :: (World.t() -> {:ok, term()} | {:error, term()}),
+          publication :: String.t() | nil
+        ) ::
           {:ok, term()} | {:error, term()}
-  def run(world_id, fun) do
+  def run(world_id, fun, publication \\ nil) do
     if Access.uuid?(world_id) do
-      Repo.transact(fn -> locked(world_id, fun) end)
+      Repo.transact(fn -> locked(world_id, fun, publication) end)
     else
       {:error, :unavailable}
     end
   end
 
-  defp locked(world_id, fun) do
+  defp locked(world_id, fun, publication) do
     case Repo.one(from w in World, where: w.id == ^world_id, lock: "FOR UPDATE") do
-      nil -> {:error, :unavailable}
-      world -> fun.(world)
+      nil ->
+        {:error, :unavailable}
+
+      world ->
+        with :ok <- publication_available(world_id, publication), do: fun.(world)
+    end
+  end
+
+  defp publication_available(world, operation) do
+    case Repo.one(
+           from p in Publication,
+             where: p.world_id == ^world and p.status in ["prepared", "committed"]
+         ) do
+      nil -> :ok
+      %{id: ^operation} when not is_nil(operation) -> :ok
+      _ -> {:error, :publication_busy}
     end
   end
 

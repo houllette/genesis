@@ -57,6 +57,8 @@ defmodule Genesis.Engine.Session do
       zone: zone,
       zone_ref: Process.monitor(zone),
       token: Keyword.fetch!(opts, :token),
+      world: Keyword.get(opts, :world),
+      durable: Keyword.get(opts, :durable, false),
       pending: false
     }
 
@@ -78,6 +80,15 @@ defmodule Genesis.Engine.Session do
   end
 
   def handle_call(request, {caller, _tag}, %{consumer: caller} = state) do
+    case locate(state) do
+      {:ok, current} -> dispatch(request, current)
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call(_request, _from, state), do: {:reply, {:error, :unauthorized}, state}
+
+  defp dispatch(request, state) do
     reply =
       case request do
         :view ->
@@ -105,9 +116,30 @@ defmodule Genesis.Engine.Session do
     {:reply, reply, %{state | pending: false}}
   end
 
-  def handle_call(_request, _from, state), do: {:reply, {:error, :unauthorized}, state}
+  defp locate(%{durable: false} = state), do: {:ok, state}
+
+  defp locate(state) do
+    with {:ok, zone} <- GenServer.call(state.world, {:locate_session, state.token}) do
+      rebind(state, zone)
+    end
+  end
+
+  defp rebind(%{zone: zone} = state, zone), do: {:ok, state}
+
+  defp rebind(state, zone) do
+    with :ok <- Zone.bind(zone, state.token) do
+      GenServer.cast(state.zone, {:departed, self(), state.token})
+      Process.demonitor(state.zone_ref, [:flush])
+      {:ok, %{state | zone: zone, zone_ref: Process.monitor(zone), pending: false}}
+    end
+  end
 
   @impl true
+  def handle_info({:travel_changed, world}, %{world: world, durable: true} = state) do
+    send(state.consumer, {:genesis_changed, self()})
+    {:noreply, %{state | pending: true}}
+  end
+
   def handle_info({:zone_changed, zone}, %{zone: zone, pending: false} = state) do
     send(state.consumer, {:genesis_changed, self()})
     {:noreply, %{state | pending: true}}

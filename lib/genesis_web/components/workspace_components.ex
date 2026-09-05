@@ -13,6 +13,11 @@ defmodule GenesisWeb.WorkspaceComponents do
             navigate={~p"/worlds/#{@world.id}/atlas"}
             class="text-link mb-4 inline-block"
           >Search the atlas & follow connections</.link>
+          <.link
+            id="open-network"
+            navigate={~p"/worlds/#{@world.id}/connections"}
+            class="text-link mb-4 ml-4 inline-block"
+          >Connect places & institutions</.link>
           <div id="zones" phx-update="stream" class="grid gap-4 sm:grid-cols-2">
             <p id="empty-section-1" class="empty-state hidden only:block sm:col-span-2">
               Start with one place. Give it two people, an object worth noticing, and a question for your next gathering.
@@ -273,6 +278,22 @@ defmodule GenesisWeb.WorkspaceComponents do
                   />
                   <p class="helper-text">
                     Descriptive persona only. Agency stays dormant; names, inventories and established facts are not regenerated.
+                  </p>
+                  <.input
+                    field={@record_form[:follow_willing]}
+                    type="checkbox"
+                    label="Willing to accept a bounded travel invitation"
+                  />
+                  <.input
+                    field={@record_form[:follow_trips]}
+                    type="number"
+                    value={@record_form[:follow_trips].value || 1}
+                    min="1"
+                    max="8"
+                    label="Maximum connected trips per agreement"
+                  />
+                  <p class="helper-text">
+                    This is an explicit engine policy, not a persona description. Market operators and institution representatives stay at their posts.
                   </p>
                 </div>
               </details>
@@ -604,7 +625,7 @@ defmodule GenesisWeb.WorkspaceComponents do
               id="claims-held"
               class="notice mt-5"
             >
-              Claims held for this place, its people and items. Pausing preserves those claims and fictional time across gatherings.
+              Claims held for every visited place, its people and items. Pausing preserves those claims and fictional time across gatherings.
             </p>
             <div :if={@can_manage} class="mt-6 flex flex-wrap gap-3">
               <button
@@ -662,8 +683,14 @@ defmodule GenesisWeb.WorkspaceComponents do
           </section>
           <section id="incorporation-limit" class="notice">
             <h3 class="font-semibold">Time reconciliation is not available yet</h3><p class="mt-2 text-sm leading-relaxed">
-              Your Experience is saved locally. Multi-Experience review, declared elapsed time and world advancement arrive in phase 08. The zero-duration storage proof is not a full completion workflow; there is no publish shortcut here.
+              Your Experience is saved locally. One zero-duration Experience can now be reviewed across all visited places. Multi-Experience review, declared elapsed time and world advancement arrive in phase 08.
             </p>
+            <.link
+              :if={@can_manage && @working}
+              id="experience-review"
+              class="text-link mt-3 inline-block"
+              navigate={~p"/worlds/#{@world.id}/experiences/#{@experience.id}/review"}
+            >Review all outcomes →</.link>
           </section>
           <section>
             <h3 class="section-heading">Gatherings</h3><p class="helper-text mb-4">

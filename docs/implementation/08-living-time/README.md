@@ -12,6 +12,15 @@ and AGENTS background-job rules. Historical real-time scheduling is superseded.
 Read [Tempo/time domains](../tempo-and-time.md); rerun 03's clock-isolation and
 04's temporal serialization/deadline recovery tests against the actual Tempo pin.
 
+Use the **07D entry command at the top of Phase 07's handoff**, not just its older
+07C1/C2 commands. Preserve its additive actor/reference codec compatibility,
+finite whole-party commitment, arrival-exchange atomicity and World standing seals/
+global write dependencies. Phase 07 publication is exactly one zero-duration
+Experience (at most eight zones); it does not yet reconcile parallel durations,
+positive-time travel, due deliveries or partially excluded experiences. Extend
+that explicit boundary with tests, not by deleting its guards or treating a scoped
+standing report as an automatically scheduled world effect.
+
 ## Outcome and scope
 
 A multi-gathering adventure and independent solo errand complete in one advancement

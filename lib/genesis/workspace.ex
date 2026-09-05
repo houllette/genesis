@@ -13,25 +13,105 @@ defmodule Genesis.Workspace do
     CampaignMember,
     Checkpoint,
     Codec,
+    Experience,
+    Footprints,
     Gathering,
     Snapshot,
     Snapshots,
+    Transfers,
     Tx
   }
 
   alias Genesis.Repo
 
-  @spec experience_view(scope :: term(), world :: String.t(), experience :: String.t()) :: term()
-  def experience_view(scope, world, experience) do
+  @doc "One GM-authorized review of every visited place against its own immutable published base."
+  @spec experience_review(scope :: term(), world :: String.t(), experience :: String.t()) ::
+          term()
+  def experience_review(scope, world, experience) do
+    Tx.run(world, fn record ->
+      with {:ok, exp} <- Experiences.get(scope, world, experience, ["gm"]),
+           {:ok, rows} <- Footprints.snapshots(exp),
+           {:ok, places} <- review_places(scope, world, exp, rows) do
+        single =
+          Repo.aggregate(from(e in Experience, where: e.window_id == ^exp.window_id), :count) == 1
+
+        zero = Enum.all?(places, &(&1.elapsed == 0))
+
+        {:ok,
+         %{
+           world: record,
+           experience: exp,
+           places: places,
+           eligible: single and zero,
+           origin_revision: Enum.find(rows, &(&1.zone_id == exp.zone_id)).revision,
+           can_publish: Access.world(scope, world, ["steward"]) == :ok
+         }}
+      end
+    end)
+  end
+
+  defp review_places(scope, world, exp, rows) do
+    Enum.reduce_while(rows, {:ok, []}, fn row, {:ok, acc} ->
+      case read_experience(scope, world, exp.id, row.zone_id) do
+        {:ok, place} -> {:cont, {:ok, acc ++ [Map.put(place, :id, row.zone_id)]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  @doc "One coherent, GM-authorized projection of every visited place, never separate reads across a move."
+  @spec experience_footprint(scope :: term(), world :: String.t(), experience :: String.t()) ::
+          term()
+  def experience_footprint(scope, world, experience) do
+    Tx.run(world, fn _ ->
+      with {:ok, exp} <- Experiences.get(scope, world, experience, ["gm"]),
+           {:ok, rows} <- Footprints.snapshots(exp),
+           true <- Enum.all?(rows, &(Transfers.accessible(&1.id) == :ok)),
+           {:ok, pairs} <- Footprints.load(rows) do
+        {:ok, Enum.map(pairs, &place_view(&1, exp))}
+      else
+        false -> {:error, :transfer_busy}
+        error -> error
+      end
+    end)
+  end
+
+  defp place_view({_row, state}, exp) do
+    {:ok, view} = State.view(state, %{role: :gm, actor_id: nil})
+    %{view | status: if(exp.status == "active", do: :active, else: :paused)}
+  end
+
+  @spec experience_view(
+          scope :: term(),
+          world :: String.t(),
+          experience :: String.t(),
+          zone :: String.t() | nil
+        ) :: term()
+  def experience_view(scope, world, experience, zone \\ nil) do
+    Tx.run(world, fn _ -> read_experience(scope, world, experience, zone) end)
+  end
+
+  defp read_experience(scope, world, experience, zone) do
     with {:ok, exp} <- Experiences.get(scope, world, experience),
-         %Snapshot{} = snapshot <- Repo.get_by(Snapshot, world_id: world, experience_id: exp.id),
+         {:ok, rows} <- Footprints.snapshots(exp),
+         %Snapshot{} = snapshot <- Enum.find(rows, &(&1.zone_id == (zone || exp.zone_id))),
+         :ok <- Transfers.accessible(snapshot.id),
          {:ok, scene} <- Snapshots.load(snapshot) do
+      scene = %{scene | status: if(exp.status == "active", do: :active, else: :paused)}
+
       role =
         if match?({:ok, _}, Access.campaign(scope, world, exp.campaign_id, ["gm"])),
           do: :gm,
           else: :spectator
 
-      checkpoint_view(scene, exp, role)
+      with {:ok, projection} <-
+             checkpoint_view(
+               scene,
+               %{exp | base_checkpoint_id: snapshot.base_checkpoint_id},
+               role
+             ) do
+        {:ok, Map.put(projection, :footprint, Enum.map(rows, & &1.zone_id))}
+      end
     else
       {:error, _reason} = error -> error
       _ -> {:error, :unavailable}

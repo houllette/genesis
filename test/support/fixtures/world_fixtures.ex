@@ -64,6 +64,7 @@ defmodule Genesis.WorldFixtures do
           end)
     }
 
+    seed = Keyword.get(opts, :transform, &Function.identity/1).(seed)
     {:ok, %{"snapshot_id" => snapshot_id}} = Bootstrap.seed(owner, world.id, seed, "seed")
 
     {:ok, campaign} =

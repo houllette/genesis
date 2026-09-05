@@ -2,7 +2,19 @@ defmodule Genesis.Persistence.Control do
   @moduledoc "Transactional pause/resume/seal operations invoked by the owning Zone."
   alias Genesis.Core.{Scope, State}
   alias Genesis.Experiences
-  alias Genesis.Persistence.{Access, Codec, Snapshot, Snapshots, Transition, Tx}
+
+  alias Genesis.Persistence.{
+    Access,
+    Codec,
+    Footprints,
+    Seals,
+    Snapshot,
+    Snapshots,
+    Transfers,
+    Transition,
+    Tx
+  }
+
   alias Genesis.Repo
   alias Genesis.Time.{Clock, Deadline}
 
@@ -19,7 +31,8 @@ defmodule Genesis.Persistence.Control do
     Tx.run(before.scope.world_id, fn world ->
       with {:ok, exp} <- Experiences.get(scope, world.id, before.scope.id, ["gm"]),
            {:ok, user} <- Access.user_id(scope),
-           true <- Scope.id?(request) do
+           true <- Scope.id?(request),
+           :ok <- footprint_available(exp) do
         snapshot = Repo.get!(Snapshot, snapshot_id)
         payload = {"status", action, revision}
 
@@ -37,6 +50,14 @@ defmodule Genesis.Persistence.Control do
         _ -> {:error, :invalid_request}
       end
     end)
+  end
+
+  defp footprint_available(exp) do
+    with {:ok, rows} <- Footprints.snapshots(exp) do
+      if Enum.any?(rows, &(Transfers.accessible(&1.id) != :ok)),
+        do: {:error, :transfer_busy},
+        else: :ok
+    end
   end
 
   defp restore_or_update(world, exp, snapshot, before, operation, opts) do
@@ -72,21 +93,11 @@ defmodule Genesis.Persistence.Control do
       {:ok, transition} = Transition.between(before, next)
       snapshot = Snapshots.save!(snapshot, next)
 
-      completion =
-        if action == :ready,
-          do: %{
-            "format" => 1,
-            "elapsed_seconds" => next.elapsed,
-            "snapshot_digest" => snapshot.digest
-          },
-          else: exp.completion
-
       exp =
         Tx.update!(exp, %{
           status: status,
           revision: exp.revision + 1,
-          deadline: deadline,
-          completion: completion
+          deadline: deadline
         })
 
       Tx.event!(
@@ -110,6 +121,8 @@ defmodule Genesis.Persistence.Control do
         clock
       )
 
+      if action == :ready, do: seal!(exp)
+
       result = %{"experience_id" => exp.id, "status" => status, "revision" => next.revision}
       Tx.remember!(world.id, snapshot.scope_key, user, request, payload, result)
       {:ok, %{scene: next, result: result}}
@@ -123,4 +136,11 @@ defmodule Genesis.Persistence.Control do
   defp next_status("paused", :resume), do: {:ok, "active"}
   defp next_status(status, :ready) when status in ["active", "paused"], do: {:ok, "ready"}
   defp next_status(_status, _action), do: {:error, :invalid_status_transition}
+
+  defp seal!(exp) do
+    case Seals.capture(exp) do
+      {:ok, completion} -> Tx.update!(exp, %{completion: completion})
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
 end

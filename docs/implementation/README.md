@@ -37,9 +37,22 @@ passed; that result covers 04–05, not later uncommitted work.
 `9e4c8cf` with successful remote CI. The user reported the existing interface
 looked fine after the manual checklist and approved proceeding; the handoffs
 distinguish that acceptance from unavailable agent-observed browser evidence.
-[07A linked atlas/persona](07-world-zones/handoff.md) is the current bounded
-implementation batch. Phase 07 remains in progress: 07B owns transfers, global
-standings and companion travel/recovery. Phases 08–16 are not started.
+[07A linked atlas/persona](07-world-zones/handoff.md) is published as `10c54f6`
+with [successful remote CI](https://github.com/houllette/genesis/actions/runs/33982428350).
+The uncommitted 07B batch adds World-owned directed connections and institution
+identity/jurisdiction curation. Bounded 07C1 adds footprint expansion, PC/inventory/
+self-contained-knowledge travel, durable reservations/recovery and Session rebinding.
+The user accepted 07A/07B manually and explicitly deferred further Browser QA.
+07C2 adds whole-footprint sealing, replay/conservation checks, atomic multi-zone
+publication with canonical ownership relocation, durable cache fences/recovery
+and a native review page. It remains bounded to one zero-duration Experience and
+eight places. **Phase 07 is complete within its documented bounds**: 07D adds voluntary companions,
+party delivery/exchange, identity-only cross-place knowledge references, scoped
+World standing/flags and native accepted-source navigation and typed annotations.
+The final `mix precommit` passed 342 tests; separate Dialyzer and asset checks passed.
+See the current handoff's closeout for the explicit Phase 08 entry checks and
+Browser QA deferral. Phases 08–16 are not started. The 07B/07C1/07C2/07D working tree has not
+been committed or pushed.
 The user's complexity concern is retained: defer broad UI refinement, keep new
 controls progressive, and fix workflow/authority problems when they arise.
 All 17 folders have briefs;
@@ -139,8 +152,9 @@ scale are not first-delivery requirements.
 
 ## Assigning a fresh agent
 
-> Continue phase 07 from `docs/implementation/07-world-zones/handoff.md`,
-> validating its delivered 07A slice before implementing 07B. Follow `AGENTS.md`
+> Begin phase 08 from `docs/implementation/08-living-time/README.md`,
+> validating the current Phase 07 handoff, including 07D, before extending time or
+> multi-Experience reconciliation. Follow `AGENTS.md`
 > and the current shared contracts. Validate the predecessor's actual handoff
 > and regression commands first. Work through this phase using red–green–refactor,
 > run `mix precommit`, and record exact evidence and next-agent entry checks in

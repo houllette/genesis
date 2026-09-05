@@ -68,10 +68,27 @@ defmodule Genesis.Content.Comparison do
   defp compare(before, working, projection, prefix) do
     prior = Map.new(before, &{&1.id, projection.(&1)})
 
-    Enum.flat_map(working, fn record ->
-      next = projection.(record)
-      row(prior[record.id], next, prefix <> "-" <> record.id)
-    end)
+    changed =
+      Enum.flat_map(working, fn record ->
+        next = projection.(record)
+        row(prior[record.id], next, prefix <> "-" <> record.id)
+      end)
+
+    removed =
+      before
+      |> Enum.reject(fn record -> Enum.any?(working, &(&1.id == record.id)) end)
+      |> Enum.map(fn record ->
+        old = projection.(record)
+
+        %{
+          id: prefix <> "-" <> record.id,
+          label: old.label,
+          published: old.value,
+          working: "Not present at this place"
+        }
+      end)
+
+    changed ++ removed
   end
 
   defp row(same, same, _id), do: []

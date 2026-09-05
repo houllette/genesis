@@ -198,6 +198,145 @@ it is not permission to accumulate unclear scope labels or broken workflows.
 runtime references. Names, NPC persona, balances and institution policy are not
 editable wiki copies. Authored relationships do not satisfy engine affiliation,
 belief or knowledge predicates. Permission filtering precedes search counts,
-snippets, link endpoints and backlinks. Window edits remain drafts. 07B must
-still implement actual global ownership/transfer recovery; no descriptive route
+snippets, link endpoints and backlinks. Window edits remain drafts. Later phase-07
+slices must implement actual transfer recovery; no descriptive route
 record authorizes movement, deliveries or remote stock edits.
+
+## Phase-07B ownership clarification — 2026-09-05
+
+This historical section describes 07B's graph/registry boundary. The subsequent
+07C1 travel boundary and the subsequent 07C2 publication extension are recorded below and in the
+[phase handoff](07-world-zones/handoff.md).
+
+The published 07A batch is `10c54f6` (remote CI succeeded). The next bounded
+slice implements a World-owned directed graph and registration of existing
+local institutions with declared jurisdictions, not the entire transfer protocol.
+`WorldNetwork` has one generation-scoped durable snapshot and no separate cache
+owner. Explicit generation/revision tokens fence stale editors; mutation, audit,
+receipt and outbox share the short World transaction. Reads project permissions
+before returning connections or institution names/links. This does not add a new
+serialization point to ordinary Zone actions.
+
+Atlas route text and the mechanical graph are different record types, not two
+editable copies of one edge. Only `WorldNetwork` owns graph condition/capacity;
+atlas route descriptions never authorize travel. A directed link is not an
+implicit return edge. Damaged and closed links block the geography check; an
+open link still says nothing about claims, actor consent, compatible inventories,
+fictional-time costs or cross-zone recovery. No travel command is enabled here.
+
+Institution registration preserves 07A's world/place/local-ID-derived reference.
+World owns the declared jurisdiction set, while names, policy, stock, obligations
+and per-actor knowledge/standing remain solely in the home Zone. Registration
+does not copy or promote private local standings into universal reputation.
+Adding a jurisdiction does not remotely apply that home's laws. 07C must define
+and test sourced, claimed global-standing transitions before enforcing them.
+
+Before transfer implementation, replace the existing single-snapshot Experience
+lookups in authority, lifecycle, workspace and incorporation deliberately. Moving
+only the actor and items is insufficient: local knowledge endpoints, companion
+bindings, institutional representatives and commodity validation currently depend
+on co-location. Define preserved remote references or reject unsupported moves;
+never drop beliefs, clone witnesses or silently disable inventory validation.
+Carry network and atlas snapshots into future generation/checkpoint restore;
+neither belongs in a Zone event-replay rewrite.
+
+## Phase-07C1 travel clarification — 2026-09-05
+
+The user accepted the previous interface manually and explicitly deferred Browser
+QA. Continue bounded mechanics without fabricating browser evidence or broad UI
+refinement. The new travel screen is covered by automated LiveView tests only.
+
+07C1 implements single-PC movement with all carried inventory and self-contained
+beliefs. Footprint claims and short transfer reservations are distinct: an aborted
+move may retain an expanded working place and its durable claims. Preview does
+not claim anything. Both endpoints are revision-fenced; their snapshots, scoped
+movement events and receipt commit atomically, then both caches install before
+reservations release. The World mailbox stays available while the supervised
+coordinator works. Fence checks and snapshot reads are atomic as well; otherwise
+a successful view could straddle the movement commit and partial installation.
+
+Actor location comes from working snapshots, not the Published entity index.
+Sessions rebind to the current owner and cannot use an old-zone grant or quote
+after moving. Pause/resume gates the entire Experience without fabricating a new
+persisted revision in untouched places. Working comparisons explicitly show
+departures. Possession of a valid commodity no longer requires a local market;
+issuance and exchange still do. Cross-place knowledge endpoints, obligations,
+companions and institution anchors are rejected instead of dropped or duplicated.
+
+At the historical 07C1 boundary, operational recovery did not imply canonical publication support. The
+single-zone incorporation reducer forbids removals, and its prior snapshot lookup
+assumed one place. Multi-zone sealing/incorporation now fails closed with an
+explicit message, including after returning home. Extend whole-footprint sealing,
+replay, aggregate conservation, Published entity-index relocation and source-event
+mapping together next. Global standings, deliveries, companions and phase-08 time
+reconciliation are not implicitly delivered by a successful travel test.
+
+## Phase-07C2 publication clarification — 2026-09-05
+
+07C2 now closes that multi-zone publication gap, without implementing phase 08.
+The supported unit is one ready Experience, one open window, no elapsed fiction,
+and at most eight working zones. Returning home or aborting travel does not shrink
+the admitted footprint. Even an unchanged visited place must be sealed, replayed,
+validated and published with it.
+
+Conservation is checked across the entire footprint, not by relaxing each zone's
+removal guard. An original actor/item/knowledge identity must still exist exactly
+once. Legitimate recorded commerce can change quantities; equality of all starting
+and final quantities would incorrectly reject it. Replay checks recorded state
+transitions; reducers, rather than publication, establish the transaction's laws.
+Mapping uses all source events, including departure/arrival records that are not
+duplicated into the Core state's local event list. Portable knowledge can refer
+to a source recorded in its previous zone.
+
+Sealing binds every snapshot/base reference, claims and event payload/audience
+digest. It is irreversible in this bounded implementation, but it does not release
+claims or publish. Approval revalidates the seal, replay, base, generation and
+ownership index. A durable publication ledger fences all World transactions and
+native canonical read models until every affected cache has installed or has been
+stopped for cold recovery. Publication and sealing coordinators leave World's
+authorization mailbox responsive; no transaction spans live process callbacks.
+An independent PostgreSQL-connection race tests the publication fence separately
+from shared-sandbox tests. Browser QA remains explicitly deferred by the user.
+
+At that 07C2 boundary, no global standings, delivery or companion mechanics were
+implemented. The following 07D extension supersedes those exclusions; positive-time
+catch-up and multi-Experience reconciliation still belong to Phase 08.
+
+## Phase-07D completion clarifications — 2026-09-05
+
+- **Agreement is not control.** The bound PC invites an existing NPC; a separate
+  engine-validated response uses explicitly authored willingness. Persona prose
+  cannot authorize following. Whole-party travel consumes one finite trip for
+  each follower only on successful commit. Dismissal removes current benefits,
+  not the actor, resources or accepted historical relationship.
+- **Relationships are not occupancy.** Retained subject-owned knowledge may refer
+  to a known remote actor through a validated identity-only `actor_refs` set.
+  Those references never supply remote mechanical state or count as present allies.
+  Unknown/foreign identities and remote subject records still fail closed.
+- **Delivery is a journey.** Arrival plus one existing local exchange shares the
+  exact transfer decision, reservations and receipt. Quantities follow phase-06
+  accounting; ordinary item take/drop and commerce contend with that same fence.
+  There are no independent shipment actors, instant remote stock edits or timers.
+- **Local evidence does not create universal reputation.** An explicit GM report
+  recognizes one accepted positive contribution to a registered institution.
+  World owns its scoped standing/relief flag and a pinned global write dependency.
+  Repeated sources cannot farm standing. Local affiliation, worship, aid authority
+  and stock remain separate. Aggregate visibility only narrows as sources accrue.
+- **Publication includes the globals.** Seals bind global row identity/data/base/
+  revision and claim metadata; recorded global transitions replay without rerunning
+  contributions. Source remapping, snapshots, global state, events and claim release
+  share one SQL commit and the existing cache fence. Uninstalled globals are not
+  exposed early through native reads. Damaged transfer evidence likewise retains
+  reservations during recovery; an operation status alone is insufficient.
+- **Authored notes are not accepted facts.** Typed annotations stay under `note:`
+  keys; current Knowledge records are read-only atlas projections with authorized
+  source navigation. Published source links never grant access to a private origin
+  Experience. Two campaigns see the same published identity and place changes but
+  only their own campaign notes. An authored baseline without an accepted event is
+  explicitly unavailable as an event source, not fabricated history.
+
+The current Phase 07 handoff records the actual APIs, limits, migration and fresh
+validation. Browser QA remains user-deferred; Phase 08 is not implemented by this
+closeout. Short World-row SQL serialization remains necessary for durable commit
+ordering; independence means no unrelated Zone/process callback is held behind a
+long-running transfer, not that all SQL writes are lock-free.

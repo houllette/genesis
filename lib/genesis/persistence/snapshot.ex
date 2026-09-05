@@ -10,6 +10,7 @@ defmodule Genesis.Persistence.Snapshot do
     field :scope_key, :string
     field :scope_kind, :string
     field :experience_id, :binary_id
+    field :base_checkpoint_id, :binary_id
     field :zone_id, :string
     field :revision, :integer
     field :state, :map

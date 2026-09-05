@@ -169,6 +169,46 @@ release short operation reservations. Avoid circular synchronous Zone calls.
 Crashes have durable operation IDs/status and revision/generation fences.
 Unrelated scopes/zones can proceed; no item is spendable in two locations.
 
+The Phase 07 party is one participating PC plus all currently bound eligible NPCs
+(at most eight actors total), each with all carried items and subject-owned knowledge.
+Recruitment is an invitation; explicit deterministic willingness resolves agreement
+or refusal. A commitment lasts 1–8 successful trips. A dead, retired or unsupported
+bound follower blocks the trip until dismissed; an institution operator stays put.
+Binding is not player control, affiliation, or permission to spend the NPC's stock.
+Commitment source IDs identify their accepted agreement/change; subsequent trip
+consumption and completion are recorded in the travel transitions.
+
+Cross-place knowledge retains its subject at the owning Zone. A missing object may
+be an `actor_refs` identity, validated against this World's canonical identity
+index: never a second actor, remotely mutable attributes, inventory or a local
+resolution participant. Transfers rebuild exactly the references needed by retained
+records. Actor presence, condition and visible current relationships—not a stale
+historical companionship record—determine companion benefits. Publication preserves
+all knowledge identities and remaps accepted sources across the whole footprint.
+
+A delivery is one real party journey plus at most one existing buy/sell/barter/offer
+action at arrival, under the same two reservations and SQL decision. No intermediate
+arrival is acknowledged. It records departure, arrival and (when present) one private
+exchange effect; the destination advances one revision. Failed quotes cannot admit a
+destination or move items. No remote quote writes stock; no delayed shipment exists
+yet. Travel still rejects any positive elapsed state and never advances fiction.
+
+World-owned global state in 07 is deliberately narrow: one institution/actor standing
+and a `relief_supported` flag, derived from explicitly reported accepted contributions.
+`WorldStandings` routes mutations to World, validates the local source and registered
+institution, deduplicates it, then claims a global write dependency before mutation.
+The dependency pins the published base and network revision; it is not a fake local
+entity or a second institutional stock writer. The scoped record, source-linked log,
+seal and publication manifest travel together. Global publication shares the same
+SQL decision/fence as all affected Zones. Reports do not grant membership, aid rights
+or omniscient reputation. Aggregated visibility is the intersection of contributing
+source audiences; history source traversal also rechecks current scope access.
+
+Ordinary unrelated Zone execution does not wait on another Zone's mailbox. Short
+durable transactions do serialize on the World row for commit-cursor allocation and
+consistency; this is not a claim of lock-free writes. Neither transfer nor publication
+holds that transaction open while waiting for process validation or installation.
+
 These short transfer reservations are distinct from a window's long-lived
 experience footprint claims. Expanding a footprint first acquires domain claims.
 Canonical changes during an open window are drafts or explicit base amendments

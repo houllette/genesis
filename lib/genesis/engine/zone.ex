@@ -3,8 +3,7 @@ defmodule Genesis.Engine.Zone do
   use GenServer, restart: :temporary
   alias Genesis.Core.{LocalAction, Scene, Scope, State}
   alias Genesis.Engine.{Draws, World}
-  alias Genesis.Persistence.{Actions, Control, Curation, Snapshot, Snapshots}
-  alias Genesis.Repo
+  alias Genesis.Persistence.{Actions, Control, Curation, Incorporation, Transfers}
   alias Genesis.Time.Clock
 
   @spec start_link(opts :: keyword()) :: GenServer.on_start()
@@ -50,6 +49,7 @@ defmodule Genesis.Engine.Zone do
   def handle_call({:bind, token}, {caller, _tag}, state) do
     with {:ok, principal} <-
            World.authorize(state.world, token, state.scene.scope, state.scene.zone_id),
+         {:ok, state} <- refresh(state),
          {:ok, _projection} <- State.view(state.scene, principal),
          true <- map_size(state.bindings) < 64,
          false <- Map.has_key?(state.bindings, caller) do
@@ -73,19 +73,64 @@ defmodule Genesis.Engine.Zone do
 
   def handle_call(:detach, {caller, _tag}, state), do: {:reply, :ok, unbind(state, caller)}
 
-  def handle_call(:install_committed, {world, _tag}, %{world: world, storage: storage} = state)
-      when not is_nil(storage) do
-    {:ok, state} = refresh(state)
-    {:reply, :ok, notify(state)}
+  def handle_call({:validate_publication, operation, next}, {worker, _}, state) do
+    with {:ok, state} <- publication_state(state, worker, operation),
+         true <-
+           next.scope == state.scene.scope and next.zone_id == state.scene.zone_id and
+             next.revision == state.scene.revision + 1,
+         {:ok, _} <- State.restore(next) do
+      {:reply, :ok, state}
+    else
+      _ -> {:reply, {:error, :invalid_publication}, state}
+    end
+  end
+
+  def handle_call({:install_publication, operation}, {worker, _}, state) do
+    case publication_state(state, worker, operation) do
+      {:ok, state} -> {:reply, :ok, notify(%{state | proposals: %{}})}
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:reserve_transfer, operation}, {worker, _}, state) do
+    with :ok <- transfer_authorized(state, worker, operation),
+         {:ok, state} <- refresh(state, operation) do
+      {:reply, {:ok, state.scene}, state}
+    else
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call({:validate_transfer, operation, next}, {worker, _}, state) do
+    with :ok <- transfer_authorized(state, worker, operation),
+         {:ok, state} <- refresh(state, operation),
+         true <-
+           next.scope == state.scene.scope and next.zone_id == state.scene.zone_id and
+             next.revision == state.scene.revision + 1,
+         {:ok, _} <- State.restore(next) do
+      {:reply, :ok, state}
+    else
+      _ -> {:reply, {:error, :invalid_transfer}, state}
+    end
+  end
+
+  def handle_call({:install_transfer, operation}, {worker, _}, state) do
+    with :ok <- transfer_authorized(state, worker, operation),
+         {:ok, state} <- refresh(state, operation) do
+      {:reply, :ok, notify(%{state | proposals: %{}})}
+    else
+      error -> {:reply, error, state}
+    end
   end
 
   def handle_call(
         {:control, scope, action, revision, request},
-        {world, _tag},
-        %{world: world, storage: storage} = state
+        {worker, _tag},
+        %{storage: storage} = state
       )
       when not is_nil(storage) do
-    with {:ok, state} <- refresh(state),
+    with :ok <- command_authorized(state, worker),
+         {:ok, state} <- refresh(state),
          {:ok, changed} <-
            Control.change(
              scope,
@@ -104,11 +149,12 @@ defmodule Genesis.Engine.Zone do
 
   def handle_call(
         {:curate, scope, operation},
-        {world, _tag},
-        %{world: world, storage: storage} = state
+        {worker, _tag},
+        %{storage: storage} = state
       )
       when not is_nil(storage) do
-    with {:ok, state} <- refresh(state),
+    with :ok <- command_authorized(state, worker),
+         {:ok, state} <- refresh(state),
          {:ok, changed} <- Curation.edit(scope, storage.snapshot_id, state.scene, operation) do
       {:reply, {:ok, changed.result}, notify(%{state | scene: changed.scene})}
     else
@@ -124,8 +170,16 @@ defmodule Genesis.Engine.Zone do
       state = sync_status(state, principal.status)
       authorized_call(request, caller, principal, state)
     else
+      {:error, reason} -> {:reply, {:error, reason}, state}
       _ -> {:reply, {:error, :unauthorized}, state}
     end
+  end
+
+  @impl true
+  def handle_cast({:departed, session, token}, state) do
+    if match?(%{token: ^token}, state.bindings[session]),
+      do: {:noreply, unbind(state, session)},
+      else: {:noreply, state}
   end
 
   @impl true
@@ -154,6 +208,17 @@ defmodule Genesis.Engine.Zone do
       do: {:noreply, state |> sync_status(status) |> notify()}
 
   def handle_info(_message, state), do: {:noreply, state}
+
+  defp publication_state(%{storage: %{snapshot_id: snapshot}} = state, worker, operation) do
+    with :ok <- GenServer.call(state.world, {:publication_authorized, worker, operation}),
+         {:ok, scene} <- Incorporation.read(state.scene.scope.world_id, operation, snapshot),
+         do: {:ok, %{state | scene: scene}}
+  end
+
+  defp publication_state(_state, _worker, _operation), do: {:error, :unauthorized}
+
+  defp command_authorized(state, worker),
+    do: GenServer.call(state.world, {:command_authorized, worker})
 
   defp authorized_call(:view, caller, principal, state) do
     reply = projection(state, principal)
@@ -350,15 +415,21 @@ defmodule Genesis.Engine.Zone do
   defp persist(state, principal, next, receipt),
     do: Actions.commit(principal, state.scene, next, receipt, state.storage_opts)
 
-  defp refresh(%{storage: nil} = state), do: {:ok, state}
+  defp refresh(state, operation \\ nil)
+  defp refresh(%{storage: nil} = state, _operation), do: {:ok, state}
 
-  defp refresh(state) do
-    with %Snapshot{} = snapshot <- Repo.get(Snapshot, state.storage.snapshot_id),
-         {:ok, scene} <- Snapshots.load(snapshot) do
-      {:ok, %{state | scene: scene}}
-    else
-      _ -> {:error, :recovery_failed}
+  defp refresh(state, operation) do
+    case Transfers.read(state.scene.scope.world_id, state.storage.snapshot_id, operation) do
+      {:ok, scene} -> {:ok, %{state | scene: scene}}
+      {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp transfer_authorized(%{storage: nil}, _worker, _operation), do: {:error, :unauthorized}
+
+  defp transfer_authorized(state, worker, operation) do
+    with :ok <- GenServer.call(state.world, {:transfer_authorized, worker, operation}),
+         do: Transfers.reserved(state.storage.snapshot_id, operation)
   end
 
   defp resolve_proposal(state, principal, {:direct, revision, intent}) do
@@ -452,6 +523,10 @@ defmodule Genesis.Engine.Zone do
   end
 
   defp sync_status(%{scene: %{status: status}} = state, status), do: state
+
+  defp sync_status(%{storage: storage} = state, status) when not is_nil(storage),
+    do: %{state | scene: %{state.scene | status: status}}
+
   defp sync_status(state, :paused), do: %{state | scene: State.pause(state.scene)}
   defp sync_status(state, :active), do: %{state | scene: State.resume(state.scene)}
 

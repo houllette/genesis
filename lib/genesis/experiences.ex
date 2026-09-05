@@ -6,10 +6,10 @@ defmodule Genesis.Experiences do
   alias Genesis.Persistence.{
     Access,
     Binding,
-    Claim,
     Codec,
     Entity,
     Experience,
+    Footprints,
     Snapshots,
     Tx,
     Window
@@ -130,7 +130,7 @@ defmodule Genesis.Experiences do
              Snapshots.find(world_id, published_scope, experience.zone_id),
            {:ok, base} <- Snapshots.load(snapshot),
            :ok <- participants(experience, base),
-           :ok <- available(world, base) do
+           :ok <- Footprints.available(world, base) do
         window =
           Repo.get_by(Window, world_id: world_id, status: "open") ||
             Tx.insert!(Window, %{
@@ -152,8 +152,8 @@ defmodule Genesis.Experiences do
 
         working = rescope(base, working_scope)
         working = %{working | revision: 0, elapsed: 0, events: [], status: :active}
-        snapshot = Snapshots.create!(world, working, id)
-        claim!(world, base, id)
+        snapshot = Snapshots.create!(world, working, id, checkpoint.id)
+        Footprints.claim!(world, base, id)
 
         experience =
           Tx.update!(experience, %{
@@ -252,36 +252,4 @@ defmodule Genesis.Experiences do
 
     if valid and not conflict, do: :ok, else: {:error, :invalid_participants}
   end
-
-  defp resources(base),
-    do:
-      [{"zone", base.zone_id}] ++
-        Enum.map(Map.keys(base.actors), &{"actor", &1}) ++
-        Enum.map(Map.keys(base.items), &{"item", &1})
-
-  defp available(world, base) do
-    claimed =
-      Enum.find(resources(base), fn {kind, id} ->
-        Repo.exists?(
-          from c in Claim,
-            where:
-              c.world_id == ^world.id and c.generation == ^world.generation and
-                c.resource_kind == ^kind and c.resource_id == ^id
-        )
-      end)
-
-    if claimed, do: {:error, :claimed}, else: :ok
-  end
-
-  defp claim!(world, base, exp),
-    do:
-      Enum.each(resources(base), fn {kind, id} ->
-        Tx.insert!(Claim, %{
-          world_id: world.id,
-          generation: world.generation,
-          resource_kind: kind,
-          resource_id: id,
-          experience_id: exp
-        })
-      end)
 end
