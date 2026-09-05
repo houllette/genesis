@@ -1,5 +1,6 @@
 defmodule Genesis.Engine.DurableWorld do
   @moduledoc "Persistent orchestration in the existing World owner, not a second process."
+  alias Genesis.Content.Atlas
   alias Genesis.Core.Scope
   alias Genesis.Engine.{Session, Supervisor, Zone}
   alias Genesis.Experiences
@@ -20,6 +21,9 @@ defmodule Genesis.Engine.DurableWorld do
           {:reply, term(), map()}
   def call(state, scope, {:create_zone, attrs, request}, _caller),
     do: {:reply, Curation.create_zone(scope, state.world_id, attrs, request), state}
+
+  def call(state, scope, {:atlas_save, id, revision, attrs, request}, _caller),
+    do: {:reply, Atlas.persist(scope, state.world_id, id, revision, attrs, request), state}
 
   def call(state, scope, {:curate, zone_id, operation}, _caller) do
     published =

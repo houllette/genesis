@@ -1,10 +1,9 @@
 # Handoff: 05 — Native GM world-building workbench
 
-Status: implementation and server-driven acceptance tests pass; **not fully
-qualified**. Actual browser visual/keyboard/narrow-layout QA is outstanding
-because the available Browser runtime returned no browser connections on
-2026-09-05. Do not substitute LiveView tests for that gate. Shared final
-precommit evidence is recorded below.
+Status: implementation and server-driven acceptance tests pass. The user's
+2026-09-05 manual acceptance permits proceeding; see the follow-up below.
+Agent-observed browser/viewport/keyboard evidence was unavailable. Historical
+open-gate statements below describe the earlier handoff, not the current go-ahead.
 
 ## Entry validation
 
@@ -145,3 +144,18 @@ connect a browser. Independent deterministic phase-06 implementation continued
 under the user's request, with this predecessor gate explicitly carried forward,
 not waived or represented as a completed phase. Close both native journeys
 before starting phase 07 or declaring 05–06 fully qualified.
+
+## Manual acceptance follow-up — 2026-09-05
+
+After receiving the manual 05–06 browser checklist, the user reported
+“Everything looks fine” and explicitly approved proceeding. This is recorded as
+user-reported acceptance of the existing interface, closing the entry blocker
+for phase 07. The user also raised interface complexity and chose to defer broad
+UI/UX refinement while the remaining phases develop.
+
+No browser name, viewport measurements, per-item results or screenshots were
+supplied. Do not convert this go-ahead into agent-observed visual/keyboard evidence
+or a comprehensive accessibility certification. It does not qualify subsequent
+phase-07 interface changes. Preserve clear scope labels and fix obstructive
+workflow/security defects now; reassess wider simplification with integrated
+journeys rather than starting a redesign during this batch.

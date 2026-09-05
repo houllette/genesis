@@ -94,9 +94,20 @@ defmodule Genesis.Content do
   @spec list_drafts(scope :: term(), world :: String.t()) :: [Draft.t()]
   def list_drafts(scope, world) do
     if Access.world(scope, world, ["steward", "builder"]) == :ok,
-      do: Repo.all(from d in Draft, where: d.world_id == ^world, order_by: d.inserted_at),
+      do:
+        Repo.all(from d in Draft, where: d.world_id == ^world, order_by: d.inserted_at)
+        |> Enum.filter(&draft_visible?(&1, scope, world)),
       else: []
   end
+
+  defp draft_visible?(
+         %{kind: "atlas", attrs: %{"visibility" => "party", "campaign_id" => campaign}},
+         scope,
+         world
+       ),
+       do: match?({:ok, _}, Access.campaign(scope, world, campaign))
+
+  defp draft_visible?(_draft, _scope, _world), do: true
 
   @spec window_open?(scope :: term(), world :: String.t()) :: boolean()
   def window_open?(scope, world),

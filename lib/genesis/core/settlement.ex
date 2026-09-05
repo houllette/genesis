@@ -148,6 +148,12 @@ defmodule Genesis.Core.Settlement do
     if changing and (holdings or obligations), do: {:error, :migration_required}, else: :ok
   end
 
-  defp npc?(state, id), do: match?(%{kind: :npc, persona: %{"version" => 1}}, state.actors[id])
+  defp npc?(state, id),
+    do:
+      match?(
+        %{kind: :npc, persona: %{"version" => version}} when version in [1, 2],
+        state.actors[id]
+      )
+
   defp integer?(n, range), do: is_integer(n) and n in range
 end

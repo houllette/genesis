@@ -19,17 +19,26 @@ Published commit `083a563` adds [durable scoped state](docs/implementation/04-pe
 and the [native GM workbench](docs/implementation/05-gm-workspace/handoff.md);
 its GitHub Actions checks passed.
 Visit `/worlds` after signing in to curate places, NPCs, items and notes, manage
-campaigns, and prepare/pause/resume Experiences across gatherings. Phase 05's
-actual browser usability gate is still open.
+campaigns, and prepare/pause/resume Experiences across gatherings. The user has
+manually accepted the existing 05–06 interface; the handoffs record the evidence
+limits and the decision to defer broader UI refinement.
 
-The next local slice implements [phase 06 settlement systems](docs/implementation/06-world-subsystems/handoff.md):
+Published `9e4c8cf` implements [phase 06 settlement systems](docs/implementation/06-world-subsystems/handoff.md):
 finite stock, currency/barter, confirmed exchanges, one production recipe,
 supply-consuming rest and religious/secular institutional obligations and aid.
 Create a world with a **local systems** ruleset, then use a place's resource
 controls and an Experience's working resource controls. Original demo worlds
-retain their pinned rules; they are not silently upgraded. Phase 06 also carries
-the browser qualification gate. Cross-zone work (07),
-full time reconciliation (08), AI and player play surfaces remain later phases.
+retain their pinned rules; they are not silently upgraded.
+
+[Phase 07A](docs/implementation/07-world-zones/handoff.md) adds a searchable,
+linked atlas at `/worlds/:world_id/atlas`, reached from the world workspace.
+Run `mix ecto.migrate` for the additive atlas table. Regions, lore and directed
+links are authored references; existing people, objects and institutions are
+read through their owning places. Records can be GM-only, world-visible or
+campaign-scoped. New NPCs have stable, dormant persona defaults; old snapshots
+are not rewritten. Routes are descriptive only. Transfers, global standings,
+companions and cross-zone recovery remain phase 07B; full time reconciliation
+(08), AI and player play surfaces remain later phases.
 Never use the ephemeral fixture mode for real adventures.
 
 The [living-history contract](docs/implementation/living-history-and-context.md)

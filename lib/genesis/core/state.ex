@@ -8,6 +8,7 @@ defmodule Genesis.Core.State do
     FictionalTime,
     Item,
     Knowledge,
+    Persona,
     Scope,
     Settlement
   }
@@ -71,7 +72,7 @@ defmodule Genesis.Core.State do
        struct(
          __MODULE__,
          Map.merge(attrs, %{
-           actors: index(actors),
+           actors: index(Enum.map(actors, &materialize_actor/1)),
            items: index(items),
            knowledge: index(knowledge)
          })
@@ -234,17 +235,12 @@ defmodule Genesis.Core.State do
 
   defp valid_actor?(_actor), do: false
 
-  defp actor_details?(actor), do: numeric_map?(actor.resources) and persona?(actor.persona)
+  defp actor_details?(actor), do: numeric_map?(actor.resources) and Persona.valid?(actor.persona)
 
-  defp persona?(persona) when persona == %{}, do: true
+  defp materialize_actor(%Actor{kind: :npc} = actor),
+    do: %{actor | persona: Persona.materialize(actor.id, actor.persona)}
 
-  defp persona?(
-         %{"version" => 1, "temperament" => temperament, "goal" => goal, "agency" => "dormant"} =
-           persona
-       ),
-       do: map_size(persona) == 4 and Scope.id?(temperament) and Scope.id?(goal)
-
-  defp persona?(_persona), do: false
+  defp materialize_actor(actor), do: actor
 
   defp valid_traits?(traits) when is_list(traits) and length(traits) <= 32,
     do: Enum.all?(traits, &Scope.id?/1) and Enum.uniq(traits) == traits

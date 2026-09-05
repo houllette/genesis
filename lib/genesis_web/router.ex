@@ -59,6 +59,7 @@ defmodule GenesisWeb.Router do
       on_mount: [{GenesisWeb.UserAuth, :require_authenticated}] do
       live "/worlds", WorldLibraryLive, :index
       live "/worlds/:world_id", WorkspaceLive, :world
+      live "/worlds/:world_id/atlas", AtlasLive, :index
       live "/worlds/:world_id/places/:zone_id", WorkspaceLive, :zone
       live "/worlds/:world_id/places/:zone_id/resources", SettlementLive, :edit
       live "/worlds/:world_id/campaigns/:campaign_id", WorkspaceLive, :campaign

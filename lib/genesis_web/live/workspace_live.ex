@@ -2,6 +2,7 @@ defmodule GenesisWeb.WorkspaceLive do
   use GenesisWeb, :live_view
   import GenesisWeb.WorkspaceComponents
   alias Genesis.{Campaigns, Content, Experiences, Invitations, Workspace, Worlds}
+  alias Genesis.Core.Persona
   alias Genesis.Engine.Runtime
   alias Genesis.Persistence.{Access, History}
 
@@ -518,7 +519,10 @@ defmodule GenesisWeb.WorkspaceLive do
               "kind" => "npc",
               "visibility" => "public",
               "temperament" => "Watchful",
-              "goal" => "Protect their place in the community"
+              "goal" => "Protect their place in the community",
+              "role" => "Resident",
+              "culture" => "Unspecified",
+              "motivation" => "Maintain belonging and security"
             },
             as: :record
           )
@@ -533,10 +537,12 @@ defmodule GenesisWeb.WorkspaceLive do
         nil
 
       actor ->
-        Map.merge(Map.get(actor, :persona, %{}) |> Map.take(~w(temperament goal)), %{
+        persona = Persona.materialize(actor.id, Map.get(actor, :persona, %{}))
+
+        Map.merge(Map.take(persona, ~w(temperament goal role culture motivation)), %{
           "kind" => kind,
           "name" => actor.name,
-          "visibility" => if(Map.get(actor, :audience) == :gm, do: "private", else: "public")
+          "visibility" => "unchanged"
         })
     end
   end
@@ -551,7 +557,7 @@ defmodule GenesisWeb.WorkspaceLive do
           "kind" => "item",
           "name" => item.name,
           "quantity" => item.quantity,
-          "visibility" => if(Map.get(item, :audience) == :gm, do: "private", else: "public")
+          "visibility" => "unchanged"
         }
     end
   end

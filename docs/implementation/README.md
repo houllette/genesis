@@ -33,11 +33,15 @@ its account/auth/page regressions were refreshed. Published commit `083a563` imp
 [04 persistence](04-persistence/handoff.md) and [05 native GM authoring](05-gm-workspace/handoff.md).
 Its [GitHub Actions run](https://github.com/houllette/genesis/actions/runs/33951975847)
 passed; that result covers 04–05, not later uncommitted work.
-Phase 05 remains unqualified until actual browser visual/keyboard/narrow-layout
-QA is available; its server-driven workflow tests are not a substitute.
-[06 local settlement systems](06-world-subsystems/handoff.md) is implemented in
-the following phase-06 batch, with exact validation and carried browser
-gates in its handoff. It is not fully qualified. Phases 07–16 are not started.
+[06 local settlement systems](06-world-subsystems/handoff.md) is published as
+`9e4c8cf` with successful remote CI. The user reported the existing interface
+looked fine after the manual checklist and approved proceeding; the handoffs
+distinguish that acceptance from unavailable agent-observed browser evidence.
+[07A linked atlas/persona](07-world-zones/handoff.md) is the current bounded
+implementation batch. Phase 07 remains in progress: 07B owns transfers, global
+standings and companion travel/recovery. Phases 08–16 are not started.
+The user's complexity concern is retained: defer broad UI refinement, keep new
+controls progressive, and fix workflow/authority problems when they arise.
 All 17 folders have briefs;
 unstarted handoffs remain explicit templates. The phase order places GM workspace
 in 05, Lemieux authoring in 10,
@@ -135,8 +139,8 @@ scale are not first-delivery requirements.
 
 ## Assigning a fresh agent
 
-> First close the browser qualification gates in the 05 and 06 handoffs, then
-> implement `docs/implementation/07-world-zones/README.md`. Follow `AGENTS.md`
+> Continue phase 07 from `docs/implementation/07-world-zones/handoff.md`,
+> validating its delivered 07A slice before implementing 07B. Follow `AGENTS.md`
 > and the current shared contracts. Validate the predecessor's actual handoff
 > and regression commands first. Work through this phase using red–green–refactor,
 > run `mix precommit`, and record exact evidence and next-agent entry checks in

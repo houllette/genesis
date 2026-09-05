@@ -1,9 +1,25 @@
 # Handoff: 06 — Local world-subsystem foundations
 
-Status: implemented and locally validated in the batch following published `083a563a0c6dedaca4474cd30eac6b160eed87ce`;
-**not fully qualified**. Actual browser visual/keyboard/narrow-layout
-QA remains open for both 05 and 06. No later phase was started. This is a bounded
-local-settlement slice, not completion of the entire subsystem roadmap.
+Status: implemented and published as `9e4c8cfd436aeb69cdd8f710d51c7b1cd543b3a1`.
+The user's manual acceptance below permits phase 07 to proceed. This remains a
+bounded local-settlement slice, not the entire subsystem roadmap. Historical
+open-browser-gate statements below describe the pre-acceptance handoff.
+
+## Publication and manual acceptance follow-up — 2026-09-05
+
+Phase 06 was pushed to `main`; the remote SHA matched `9e4c8cf`.
+[GitHub Actions 33977526863](https://github.com/houllette/genesis/actions/runs/33977526863)
+completed successfully, including its separate Dialyzer check. That result covers
+phase 06, not subsequent phase-07 changes.
+
+After the manual 05–06 checklist, the user reported “Everything looks fine” and
+approved moving forward, while flagging interface complexity and explicitly
+deferring broad refinement. This closes the predecessor entry blocker as
+user-reported acceptance, not agent-observed browser QA. Browser/version, exact
+widths, per-check results and screenshots were not supplied. See
+[05's follow-up](../05-gm-workspace/handoff.md#manual-acceptance-follow-up--2026-09-05).
+Phase 07 starts with a bounded atlas/persona slice; travel and recovery are a
+following slice. Do not extend this acceptance to new, unseen phase-07 screens.
 
 ## Entry validation and publication
 

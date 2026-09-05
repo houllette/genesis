@@ -1,6 +1,6 @@
 defmodule Genesis.Core.Curation do
   @moduledoc "Typed authoring reducer. Notes, plans and persona are never action facts or autonomous agents."
-  alias Genesis.Core.{Actor, Item, Scope, Settlement, State}
+  alias Genesis.Core.{Actor, Item, Persona, Scope, Settlement, State}
 
   @spec apply(state :: State.t(), id :: String.t(), attrs :: map(), character :: Actor.t() | nil) ::
           {:ok, State.t()} | {:error, atom()}
@@ -24,7 +24,7 @@ defmodule Genesis.Core.Curation do
   defp valid_attrs?(_attrs), do: false
 
   defp allowed_fields("zone"), do: ~w(kind name description)
-  defp allowed_fields("npc"), do: ~w(kind name temperament goal visibility)
+  defp allowed_fields("npc"), do: ~w(kind name visibility) ++ Persona.editable_fields()
   defp allowed_fields("pc"), do: ~w(kind name)
   defp allowed_fields("item"), do: ~w(kind name quantity visibility)
   defp allowed_fields("stock"), do: ~w(kind name commodity quantity owner_id reason)
@@ -50,13 +50,8 @@ defmodule Genesis.Core.Curation do
         existing
         | name: attrs["name"],
           revision: existing.revision + 1,
-          audience: audience(attrs),
-          persona: %{
-            "version" => 1,
-            "temperament" => Map.get(attrs, "temperament", "Watchful"),
-            "goal" => Map.get(attrs, "goal", "Protect their place in the community"),
-            "agency" => "dormant"
-          }
+          audience: audience(attrs, existing.audience),
+          persona: Persona.edit(id, existing.persona, attrs)
       }
 
       {:ok, %{state | actors: Map.put(state.actors, id, actor)}}
@@ -84,7 +79,7 @@ defmodule Genesis.Core.Curation do
       existing
       | name: attrs["name"],
         quantity: Map.get(attrs, "quantity", existing.quantity),
-        audience: audience(attrs)
+        audience: audience(attrs, existing.audience)
     }
 
     if is_nil(existing.commodity),
@@ -93,8 +88,9 @@ defmodule Genesis.Core.Curation do
   end
 
   defp record(_state, _id, _attrs, _character), do: {:error, :invalid_record}
-  defp audience(%{"visibility" => "private"}), do: :gm
-  defp audience(%{"visibility" => "public"}), do: :public
-  defp audience(attrs) when not is_map_key(attrs, "visibility"), do: :public
-  defp audience(_attrs), do: :invalid
+  defp audience(%{"visibility" => "private"}, _previous), do: :gm
+  defp audience(%{"visibility" => "public"}, _previous), do: :public
+  defp audience(%{"visibility" => "unchanged"}, previous), do: previous
+  defp audience(attrs, previous) when not is_map_key(attrs, "visibility"), do: previous
+  defp audience(_attrs, _previous), do: :invalid
 end

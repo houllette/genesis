@@ -29,6 +29,19 @@ defmodule GenesisWeb.WorkspaceLiveTest do
     {:ok, Map.put(ctx, :conn, log_in_user(conn, ctx.owner.user))}
   end
 
+  test "renaming a scoped private item keeps its current audience", ctx do
+    {:ok, page, _} = live(ctx.conn, ~p"/worlds/#{ctx.world.id}/places/bridge")
+    page |> element("#edit-item-sealed-letter") |> render_click()
+    assert has_element?(page, "#record_visibility option[value='unchanged'][selected]")
+    page |> form("#record-form", record: %{name: "Renamed sealed dispatch"}) |> render_submit()
+    assert {:ok, view} = Content.view(ctx.owner, ctx.world.id, "bridge")
+    letter = Enum.find(view.items, &(&1.id == "sealed-letter"))
+    assert letter.name == "Renamed sealed dispatch"
+    assert letter.audience == ctx.seed.items["sealed-letter"].audience
+    page |> element("#preview-player") |> render_click()
+    refute has_element?(page, "#items article", "Renamed sealed dispatch")
+  end
+
   test "GM curates a place and a campaign, then pauses and reopens across gatherings without a player",
        ctx do
     {:ok, world, _} = live(ctx.conn, ~p"/worlds/#{ctx.world.id}")

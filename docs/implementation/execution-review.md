@@ -184,3 +184,20 @@ for validation and browser gates.
 - Browser-hosted LiveView tests are server-driven acceptance evidence, not
   actual browser visual/keyboard QA. The unavailable Browser connection is an
   open qualification gate for both 05 and 06, not a reason to mark either done.
+
+## Phase-07A follow-up — 2026-09-05
+
+The user subsequently accepted the existing 05–06 interface after the manual
+checklist and approved proceeding. This supersedes the entry blocker above as
+user-reported acceptance, without inventing browser, viewport or screenshot
+evidence. They explicitly deferred broad UI refinement because later phases
+will change the workflows. Keep that concern visible for the integrated pilot;
+it is not permission to accumulate unclear scope labels or broken workflows.
+
+07A adds World-owned, generation-scoped descriptive atlas rows and read-through
+runtime references. Names, NPC persona, balances and institution policy are not
+editable wiki copies. Authored relationships do not satisfy engine affiliation,
+belief or knowledge predicates. Permission filtering precedes search counts,
+snippets, link endpoints and backlinks. Window edits remain drafts. 07B must
+still implement actual global ownership/transfer recovery; no descriptive route
+record authorizes movement, deliveries or remote stock edits.

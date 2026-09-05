@@ -1,5 +1,16 @@
 # Phase 07 — Linked world atlas, multiple zones and global ownership
 
+## Bounded execution slices
+
+The current run selects **07A: linked atlas and persona identity**, chiefly the
+record-only portion of slice 6 and existing-creation-path portion of slice 7.
+The user accepted the existing 05–06 interface and chose to defer a broad UI
+redesign. See the [actual handoff](handoff.md) for evidence and remaining limits.
+**07B** still owns the mechanical World graph/global-state migration, claims,
+transfers, race/crash recovery, client resubscription and companion behavior.
+Describing a route or affiliation in the atlas never implements those mechanics.
+Do not mark the full phase complete or start 08 from the 07A subset.
+
 ## Validate phase 06 first
 
 Read [phase 06's handoff](../06-world-subsystems/handoff.md). Run native GM resource

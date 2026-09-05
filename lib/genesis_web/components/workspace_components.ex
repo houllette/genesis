@@ -8,6 +8,11 @@ defmodule GenesisWeb.WorkspaceComponents do
       <div class="space-y-10">
         <section>
           <h2 class="section-heading">People & places</h2>
+          <.link
+            id="open-atlas"
+            navigate={~p"/worlds/#{@world.id}/atlas"}
+            class="text-link mb-4 inline-block"
+          >Search the atlas & follow connections</.link>
           <div id="zones" phx-update="stream" class="grid gap-4 sm:grid-cols-2">
             <p id="empty-section-1" class="empty-state hidden only:block sm:col-span-2">
               Start with one place. Give it two people, an object worth noticing, and a question for your next gathering.
@@ -249,6 +254,28 @@ defmodule GenesisWeb.WorkspaceComponents do
                 required
                 maxlength="160"
               />
+              <details
+                :if={@record_form[:kind].value == "npc"}
+                class="rounded-lg border border-stone-200 p-3"
+              >
+                <summary class="cursor-pointer text-sm font-medium">Background & motivation</summary>
+                <div class="mt-3 space-y-3">
+                  <.input field={@record_form[:role]} label="Role in the community" maxlength="128" />
+                  <.input
+                    field={@record_form[:culture]}
+                    label="Cultural background (description)"
+                    maxlength="128"
+                  />
+                  <.input
+                    field={@record_form[:motivation]}
+                    label="Underlying motivation"
+                    maxlength="128"
+                  />
+                  <p class="helper-text">
+                    Descriptive persona only. Agency stays dormant; names, inventories and established facts are not regenerated.
+                  </p>
+                </div>
+              </details>
               <.input
                 :if={@record_form[:kind].value == "item"}
                 field={@record_form[:quantity]}
@@ -263,7 +290,10 @@ defmodule GenesisWeb.WorkspaceComponents do
                 field={@record_form[:visibility]}
                 type="select"
                 label="Visibility"
-                options={[{"Public", "public"}, {"GM only", "private"}]}
+                options={
+                  [{"Public", "public"}, {"GM only", "private"}] ++
+                    if(@record_id != "", do: [{"Keep current audience", "unchanged"}], else: [])
+                }
               />
               <p class="helper-text">
                 {if @record_form[:kind].value == "pc",
