@@ -10,12 +10,15 @@ defmodule Genesis.Experiences do
     Entity,
     Experience,
     Footprints,
+    LocalAdvance,
     Snapshots,
+    Transition,
     Tx,
     Window
   }
 
   alias Genesis.Repo
+  alias Genesis.Time.Clock
 
   @spec create(
           scope :: term(),
@@ -60,7 +63,8 @@ defmodule Genesis.Experiences do
             campaign_id: campaign_id,
             name: attrs["name"],
             zone_id: attrs["zone_id"],
-            participants: Map.get(attrs, "participants", [])
+            participants: Map.get(attrs, "participants", []),
+            start_offset: Map.get(attrs, "start_offset", 0)
           })
 
         Tx.remember!(world_id, "experiences", user, request, payload, %{
@@ -124,6 +128,11 @@ defmodule Genesis.Experiences do
       with {:ok, experience} <- get(scope, world_id, id, ["gm"]),
            {:ok, operator} <- Access.user_id(scope),
            true <- experience.revision == revision and experience.status == "draft",
+           true <-
+             not Repo.exists?(
+               from w in Window,
+                 where: w.world_id == ^world_id and w.status not in ["open", "closed"]
+             ),
            published_scope =
              struct(Scope, world_id: world.id, generation: world.generation, kind: :published),
            snapshot when not is_nil(snapshot) <-
@@ -177,6 +186,7 @@ defmodule Genesis.Experiences do
           })
 
         Snapshots.checkpoint!(snapshot, event.cursor)
+        prepare_offset!(world, experience, snapshot, working, operator)
         {:ok, experience}
       else
         {:error, _reason} = error -> error
@@ -227,10 +237,52 @@ defmodule Genesis.Experiences do
     do:
       Enum.all?(Map.keys(attrs), &(&1 in ~w(name zone_id participants start_offset))) and
         Scope.id?(attrs["name"]) and Scope.id?(attrs["zone_id"]) and
-        Map.get(attrs, "start_offset", 0) == 0 and is_list(Map.get(attrs, "participants", [])) and
+        is_integer(Map.get(attrs, "start_offset", 0)) and
+        Map.get(attrs, "start_offset", 0) in 0..31_622_400 and
+        is_list(Map.get(attrs, "participants", [])) and
         valid_participants?(Map.get(attrs, "participants", []))
 
   defp valid_attrs?(_attrs), do: false
+
+  @doc false
+  @spec prepare_offset!(
+          world :: map(),
+          exp :: map(),
+          snapshot :: map(),
+          working :: map(),
+          operator :: String.t()
+        ) :: term()
+  def prepare_offset!(_world, %{start_offset: 0}, _snapshot, _working, _operator), do: :ok
+
+  def prepare_offset!(world, exp, snapshot, working, operator) do
+    case LocalAdvance.prepare(world, exp, working, working.time.value + exp.start_offset) do
+      {:ok, current, next, steps} ->
+        LocalAdvance.save!(world, exp, snapshot, steps, operator, Clock.system())
+        next = %{next | elapsed: 0}
+        {:ok, transition} = Transition.between(current, next)
+        Snapshots.save!(snapshot, next)
+
+        Tx.event!(world, %{
+          snapshot_id: snapshot.id,
+          scope_key: snapshot.scope_key,
+          kind: "experience",
+          experience_id: exp.id,
+          campaign_id: exp.campaign_id,
+          principal_id: operator,
+          audience_users: [operator],
+          transition: transition,
+          event:
+            Codec.dump!(%{
+              type: "experience_offset_prepared",
+              occurred_at: next.time.value,
+              result: %{"start_offset" => exp.start_offset}
+            })
+        })
+
+      {:error, reason} ->
+        Repo.rollback(reason)
+    end
+  end
 
   defp valid_participants?(participants),
     do:

@@ -11,7 +11,8 @@ defmodule Genesis.Core.Incorporation do
     :name,
     :description,
     :actions,
-    :context_rules
+    :context_rules,
+    :timeline
   ]
 
   @spec project(

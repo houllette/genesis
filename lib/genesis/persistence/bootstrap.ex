@@ -37,7 +37,7 @@ defmodule Genesis.Persistence.Bootstrap do
 
       :new ->
         cond do
-          Repo.exists?(from w in Window, where: w.world_id == ^world.id and w.status == "open") ->
+          Repo.exists?(from w in Window, where: w.world_id == ^world.id and w.status != "closed") ->
             {:error, :window_open}
 
           Snapshots.find(world.id, state.scope, state.zone_id) ->

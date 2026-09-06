@@ -393,7 +393,7 @@ defmodule Genesis.Engine.Zone do
            effects: effects,
            revision: next.revision
          },
-         {:ok, receipt} <- persist(state, principal, next, receipt) do
+         {:ok, receipt, next} <- persist(state, principal, next, receipt, proposal, inputs) do
       Actions.fault(state.storage_opts, :after_commit)
       receipts = if state.storage, do: state.receipts, else: Map.put(state.receipts, key, receipt)
 
@@ -413,10 +413,18 @@ defmodule Genesis.Engine.Zone do
   defp confirmed_id({:step, _plan, _index, payload}), do: confirmed_id(payload)
   defp confirmed_id(_payload), do: nil
 
-  defp persist(%{storage: nil}, _principal, _next, receipt), do: {:ok, receipt}
+  defp persist(%{storage: nil}, _principal, next, receipt, _proposal, _inputs),
+    do: {:ok, receipt, next}
 
-  defp persist(state, principal, next, receipt),
-    do: Actions.commit(principal, state.scene, next, receipt, state.storage_opts)
+  defp persist(state, principal, next, receipt, proposal, inputs),
+    do:
+      Actions.commit_prepared(
+        principal,
+        state.scene,
+        next,
+        receipt,
+        Keyword.merge(state.storage_opts, proposal: proposal, inputs: inputs)
+      )
 
   defp refresh(state, operation \\ nil)
   defp refresh(%{storage: nil} = state, _operation), do: {:ok, state}

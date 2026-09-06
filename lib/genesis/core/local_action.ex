@@ -84,9 +84,19 @@ defmodule Genesis.Core.LocalAction do
   @spec reduce(state :: State.t(), actor :: String.t(), intent :: map(), inputs :: map()) ::
           {:ok, State.t(), [map()]} | {:error, atom()}
   def reduce(state, actor, intent, inputs) do
+    execute(state, actor, intent, inputs, false)
+  end
+
+  @doc "Resolve an explicitly authorized NPC routine at its due point, without adding its duration again."
+  @spec scheduled(state :: State.t(), actor :: String.t(), intent :: map(), inputs :: map()) ::
+          term()
+  def scheduled(state, actor, intent, inputs), do: execute(state, actor, intent, inputs, true)
+
+  defp execute(state, actor, intent, inputs, scheduled?) do
     with :ok <- available(state, actor, intent),
          true <- inputs.draws == [],
          {:ok, terms} <- terms(state, actor, intent),
+         terms = if(scheduled?, do: Map.put(terms, "duration", 0), else: terms),
          {:ok, time} <-
            FictionalTime.advance(state.time, %{unit: :second, value: terms["duration"]}),
          {:ok, changed, flows} <- Stock.flows(state, terms["flows"], inputs.event_id) do

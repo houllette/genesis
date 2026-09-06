@@ -94,12 +94,18 @@ defmodule Genesis.Persistence.Footprints do
   def expand!(world, exp, scene, principal) do
     with {:ok, rows} <- snapshots(exp),
          true <- length(rows) < 8,
-         {:ok, states} <- load(rows),
-         true <- Enum.all?(states, fn {_row, state} -> state.elapsed == 0 end),
          published_scope = %{scene.scope | kind: :published, window_id: nil, id: nil},
          %Snapshot{} = base_row <- Snapshots.find(world.id, published_scope, scene.zone_id),
          {:ok, base} <- Snapshots.load(base_row),
-         :ok <- available(world, base) do
+         :ok <- available(world, base),
+         true <-
+           scene == %{
+             Experiences.rescope(base, scene.scope)
+             | revision: 0,
+               elapsed: 0,
+               events: [],
+               status: :active
+           } do
       checkpoint = Snapshots.checkpoint!(base_row, world.cursor)
       row = Snapshots.create!(world, scene, exp.id, checkpoint.id)
       claim!(world, base, exp.id)
@@ -118,12 +124,33 @@ defmodule Genesis.Persistence.Footprints do
         })
 
       Snapshots.checkpoint!(row, event.cursor)
-      {:ok, row}
+      Experiences.prepare_offset!(world, exp, row, scene, principal.user_id)
+      {:ok, Repo.get!(Snapshot, row.id)}
     else
       false -> {:error, :footprint_expansion_unavailable}
       error -> error
     end
   end
+
+  @spec admit(scope :: term(), world :: String.t(), experience :: String.t(), zone :: String.t()) ::
+          term()
+  def admit(scope, world, id, zone) do
+    Tx.run(world, fn world ->
+      with {:ok, %{status: "active"} = exp} <- Experiences.get(scope, world.id, id, ["gm"]),
+           {:ok, user} <- Genesis.Persistence.Access.user_id(scope),
+           {:ok, source_row} <- actor_snapshot(exp, nil),
+           {:ok, source} <- Snapshots.load(source_row),
+           {:ok, row, scene} <- destination(world, exp, source, zone) do
+        admit_row(row, world, exp, scene, user)
+      else
+        {:error, _} = error -> error
+        _ -> {:error, :unavailable}
+      end
+    end)
+  end
+
+  defp admit_row(nil, world, exp, scene, user), do: expand!(world, exp, scene, %{user_id: user})
+  defp admit_row(row, _world, _exp, _scene, _user), do: {:ok, row}
 
   @spec resources(state :: State.t()) :: list()
   def resources(state),

@@ -9,6 +9,7 @@ defmodule Genesis.Core.State do
   alias Genesis.Core.Item
   alias Genesis.Core.Knowledge
   alias Genesis.Core.Persona
+  alias Genesis.Core.Schedule
   alias Genesis.Core.Scope
   alias Genesis.Core.Settlement
 
@@ -23,6 +24,7 @@ defmodule Genesis.Core.State do
     :local_rules,
     :settlement,
     :actor_refs,
+    :timeline,
     name: nil,
     description: "",
     actors: %{},
@@ -44,6 +46,7 @@ defmodule Genesis.Core.State do
           local_rules: map() | nil,
           settlement: map() | nil,
           actor_refs: [String.t()] | nil,
+          timeline: map() | nil,
           name: String.t() | nil,
           description: String.t(),
           actors: map(),
@@ -65,7 +68,8 @@ defmodule Genesis.Core.State do
 
     if valid_header?(attrs, scope, zone, time) and valid_collections?(actors, items, knowledge) and
          entities_valid?(attrs, actors, items, knowledge) and
-         local?(attrs, actors, items) do
+         local?(attrs, actors, items) and
+         Schedule.timeline?(Map.get(attrs, :timeline)) do
       {:ok,
        struct(
          __MODULE__,
@@ -190,6 +194,7 @@ defmodule Genesis.Core.State do
       :local_rules,
       :settlement,
       :actor_refs,
+      :timeline,
       :name,
       :description,
       :actors,

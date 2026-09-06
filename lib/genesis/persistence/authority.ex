@@ -25,7 +25,7 @@ defmodule Genesis.Persistence.Authority do
         ) :: {:ok, map(), Snapshot.t()} | {:error, atom()}
   def principal(scope, world, experience, actor) do
     with {:ok, exp} <- Experiences.get(scope, world, experience),
-         true <- exp.status in ["active", "paused", "ready"],
+         true <- exp.status in ["active", "paused", "ready", "needs_review"],
          {:ok, user} <- Access.user_id(scope),
          {:ok, snapshot} <- Footprints.actor_snapshot(exp, actor),
          {:ok, state} <- Snapshots.load(snapshot),
@@ -40,7 +40,13 @@ defmodule Genesis.Persistence.Authority do
          scope: state.scope,
          zone_id: state.zone_id,
          snapshot_id: snapshot.id,
-         status: if(exp.status == "active", do: :active, else: :paused)
+         status:
+           if(
+             exp.status == "active" and
+               match?(%{status: "open"}, Repo.get(Genesis.Persistence.Window, exp.window_id)),
+             do: :active,
+             else: :paused
+           )
        }, snapshot}
     else
       _ -> {:error, :unauthorized}

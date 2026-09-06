@@ -16,6 +16,7 @@ defmodule Genesis.CommittedWorldFixtures do
     Invitation,
     Note,
     Outbox,
+    Preparation,
     Receipt,
     Snapshot,
     Window,
@@ -34,11 +35,19 @@ defmodule Genesis.CommittedWorldFixtures do
       ids = Repo.all(from o in Outbox, where: o.world_id == ^ctx.world.id, select: o.id)
       Repo.delete_all(from j in Oban.Job, where: fragment("?->>'outbox_id'", j.args) in ^ids)
 
+      Repo.delete_all(
+        from j in Oban.Job,
+          where:
+            j.worker == "Genesis.Persistence.PrepareTimeline" and
+              fragment("?->>'world_id'", j.args) == ^ctx.world.id
+      )
+
       Repo.update_all(from(e in Experience, where: e.world_id == ^ctx.world.id),
         set: [base_checkpoint_id: nil]
       )
 
       for schema <- [
+            Preparation,
             Claim,
             Binding,
             Receipt,

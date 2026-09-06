@@ -16,6 +16,7 @@ defmodule Genesis.Persistence.Experience do
     field :base_checkpoint_id, :binary_id
     field :deadline, :map, default: %{}
     field :completion, :map, default: %{}
+    field :start_offset, :integer, default: 0
     timestamps(type: :utc_datetime_usec)
   end
 end

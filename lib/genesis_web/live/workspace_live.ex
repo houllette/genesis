@@ -233,6 +233,8 @@ defmodule GenesisWeb.WorkspaceLive do
         )
 
   def handle_event("create-experience", %{"experience" => attrs, "request_id" => request}, socket) do
+    attrs = Map.update(attrs, "start_offset", 0, &integer/1)
+
     case Experiences.create(
            socket.assigns.current_scope,
            socket.assigns.world.id,
@@ -500,7 +502,9 @@ defmodule GenesisWeb.WorkspaceLive do
       delegation_form: to_form(%{"role" => "viewer"}, as: :delegation),
       binding_form: to_form(%{}, as: :binding),
       experience_form:
-        to_form(%{"name" => "A light at the quay", "participants" => []}, as: :experience),
+        to_form(%{"name" => "A light at the quay", "participants" => [], "start_offset" => "0"},
+          as: :experience
+        ),
       gathering_form: to_form(%{"title" => "An evening in Ashfall"}, as: :gathering)
     )
     |> record_form()

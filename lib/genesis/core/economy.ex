@@ -14,7 +14,7 @@ defmodule Genesis.Core.Economy do
       recipe_id != r["id"] ->
         {:error, :unavailable}
 
-      quantity > state.settlement["capacity"] ->
+      quantity > capacity(state) ->
         {:error, :production_capacity}
 
       true ->
@@ -72,6 +72,14 @@ defmodule Genesis.Core.Economy do
   end
 
   def terms(_state, _actor, _intent), do: {:error, :unavailable}
+
+  defp capacity(state) do
+    case (state.timeline || %{})["condition"] do
+      "closed" -> 0
+      "harsh" -> div(state.settlement["capacity"], 2)
+      _ -> state.settlement["capacity"]
+    end
+  end
 
   @spec apply(state :: map(), actor :: String.t(), terms :: map()) :: map()
   def apply(state, actor, %{"gain" => gain, "resource" => resource}),

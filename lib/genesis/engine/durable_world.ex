@@ -9,10 +9,14 @@ defmodule Genesis.Engine.DurableWorld do
     Access,
     Authority,
     Curation,
+    Footprints,
     Incorporation,
+    Preparations,
     Snapshot,
     Snapshots,
-    Transfers
+    TimedPlan,
+    Transfers,
+    Tx
   }
 
   alias Genesis.Repo
@@ -33,6 +37,65 @@ defmodule Genesis.Engine.DurableWorld do
   def call(state, scope, {:standing_report, exp, event, request}, _caller),
     do:
       {:reply, Genesis.WorldStandings.persist(scope, state.world_id, exp, event, request), state}
+
+  def call(state, scope, {:prepare_time, attrs, request}, _caller),
+    do: {:reply, Preparations.start(scope, state.world_id, attrs, request), state}
+
+  def call(state, scope, {:admit_place, exp, zone}, _caller),
+    do: {:reply, Footprints.admit(scope, state.world_id, exp, zone), state}
+
+  def call(state, scope, {:scene_time, experience, zone_id, amount, revision, request}, _caller) do
+    with {:ok, _exp} <- Experiences.get(scope, state.world_id, experience, ["gm"]),
+         %Snapshot{} = snapshot <-
+           Repo.get_by(Snapshot,
+             world_id: state.world_id,
+             experience_id: experience,
+             zone_id: zone_id
+           ),
+         {:ok, zone, state} <- zone(state, snapshot) do
+      {:delegate, zone, {:control, scope, {:elapse, amount}, revision, request}, state}
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
+      _ -> {:reply, {:error, :unavailable}, state}
+    end
+  end
+
+  def call(state, scope, {:step_time, id, generation}, _caller),
+    do:
+      {:reply,
+       Preparations.step(
+         scope,
+         state.world_id,
+         id,
+         generation,
+         state.zone_opts
+       ), state}
+
+  def call(state, scope, {:cancel_time, id, digest, reason}, _caller),
+    do: {:reply, Preparations.cancel(scope, state.world_id, id, digest, reason), state}
+
+  def call(state, scope, {:preview_time, id}, _caller) do
+    with {:ok, user} <- Access.user_id(scope),
+         true <- map_size(state.previews) < 8,
+         {:ok, prepared} <-
+           Tx.run(
+             state.world_id,
+             &TimedPlan.prepare(scope, &1, id)
+           ) do
+      reply = %{
+        id: prepared.id,
+        target: prepared.manifest["target"],
+        source_events: length(prepared.sources),
+        zone_ids: Enum.map(prepared.zones, & &1.candidate.zone_id)
+      }
+
+      {:reply, {:ok, reply},
+       %{state | previews: Map.put(state.previews, {user, prepared.id}, prepared)}}
+    else
+      {:error, _} = error -> {:reply, error, state}
+      _ -> {:reply, {:error, :capacity_limit}, state}
+    end
+  end
 
   def call(state, scope, {:curate, zone_id, operation}, _caller) do
     published =

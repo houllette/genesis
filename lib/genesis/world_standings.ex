@@ -62,12 +62,13 @@ defmodule Genesis.WorldStandings do
 
   defp report_new(scope, world, exp, source, user, key, request) do
     with true <- exp.status == "active",
+         true <- match?(%{status: "open"}, Repo.get(Genesis.Persistence.Window, exp.window_id)),
          {:ok, effect} <- Codec.load(source.event),
          true <- contribution?(effect),
          %Snapshot{} = snapshot <- Repo.get(Snapshot, source.snapshot_id),
          :ok <- Transfers.accessible(snapshot.id),
          {:ok, state} <- Snapshots.load(snapshot),
-         true <- state.elapsed == 0 and not is_nil(state.settlement),
+         true <- not is_nil(state.settlement),
          true <- effect.target_id == state.settlement["representative_id"],
          {:ok, network} <- WorldNetwork.view(scope, world.id),
          institution =

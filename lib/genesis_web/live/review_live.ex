@@ -248,13 +248,14 @@ defmodule GenesisWeb.ReviewLive do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <main class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <.link class="text-link" navigate={~p"/worlds/#{@world_id}/experiences/#{@experience_id}"}>← Back to Experience</.link>
+        <.link id="window-time-review" class="text-link ml-4" navigate={~p"/worlds/#{@world_id}/time"}>Review world advancement</.link>
         <section :if={@review} class="mt-6 space-y-6">
           <header>
             <p class="eyebrow">Completion review · {@review.experience.status}</p>
             <h1 id="review-title" class="display-title">{@review.experience.name}</h1>
           </header>
           <aside id="review-boundary" class="notice">
-            Finish an adventure with its actual outcome and total fictional duration. Completion stops play and keeps claims held; it does not publish anything and cannot currently be undone. Publication still supports only one zero-duration Experience until ordered time reconciliation is implemented.
+            Finish an adventure with its actual outcome and total fictional duration. Completion stops play and keeps claims held. Review world advancement to combine parallel adventures, correct a declared total, or explicitly exclude an outcome without erasing its records.
           </aside>
           <p :if={!@review.eligible} id="review-ineligible" class="notice">
             This window needs time or multi-Experience reconciliation. Its outcomes remain saved locally; publication is unavailable here.

@@ -237,25 +237,30 @@ target and uses the same pure laws; no idle entity timers or unbounded wake stor
 
 ## Connected systems and living history
 
-The first Phase 08 slice (08A) retains those publication/transfer guards. Explicit
+The first Phase 08 slice (08A) retained those publication/transfer guards. Explicit
 scene time is a GM command to the existing owning Zone, not a new world clock.
 The Experience cursor is derived from durable scoped snapshots and their original
 checkpoints; no duplicate mutable cursor column is introduced. Positive time is
-currently restricted to a single-place footprint until multi-place coordination
-and due work exist. Legacy zero-time transfers and publication remain supported.
+now supported across a bounded footprint: lagging places catch up through their
+own Zone before spending or travel, without summing elapsed time across places.
+Legacy zero-time transfers and publication remain supported.
 An explicit finish binds the full footprint/global-dependency review digest,
 records actual outcome and total duration, freezes deadlines and captures a format-3
 seal. The declared total covers recorded time; it does not add that time again or
-run unimplemented due effects. A positive declared total also blocks the old
+run due effects before explicit preparation. A positive declared total still blocks the old
 zero-duration publication path even if every action took zero seconds.
 
 New worlds may pin a reviewed Gregorian/Coptic mapping and explicit midnight
 epoch in `worlds.calendar`; old ordinal worlds keep an empty mapping. No current
 calendar-edit operation, implicit migration, dynamic calendar module or wall-date
 default exists. Pure calendar arithmetic resolves months/years to explicit seconds,
-and saves the input/mapping/policy with each new scene-time event. Recurrence,
-due-effect scheduling, parallel target calculation and resumable candidates remain
-Phase 08 work, not capabilities implied by the calendar adapter.
+and saves the input/mapping/policy with each new scene-time event. Phase 08 now
+connects this adapter to explicit-target recurrence and half-open availability.
+World-owned durable proposals interleave recorded transitions and due laws, bind
+the maximum included end plus explicit downtime, and use the existing atomic
+publication/cache fence. Changed dependencies require review, not terminal-snapshot
+overwrite. The [current handoff](08-living-time/handoff.md) defines precise caps,
+start offsets, action-duration accounting, correction/exclusion and native APIs.
 
 Phase 06 implements local resources, atomic exchange, production and religious/
 secular obligations. Phase 07 extends cross-zone ownership; 08 schedules those

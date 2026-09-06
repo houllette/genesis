@@ -64,6 +64,11 @@ defmodule Genesis.Persistence.Seals do
       calendar = Repo.get!(World, exp.world_id).calendar
       manifest = if calendar == %{}, do: manifest, else: Map.put(manifest, "calendar", calendar)
 
+      manifest =
+        if exp.start_offset == 0,
+          do: manifest,
+          else: Map.put(manifest, "start_offset", exp.start_offset)
+
       {:ok, manifest}
     else
       false -> {:error, :capacity_limit}

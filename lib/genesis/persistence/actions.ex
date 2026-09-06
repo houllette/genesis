@@ -4,10 +4,12 @@ defmodule Genesis.Persistence.Actions do
   alias Genesis.Core.State
 
   alias Genesis.Persistence.{
+    ActionTime,
     Authority,
     Codec,
     Event,
     Experience,
+    LocalAdvance,
     LocalTime,
     Receipt,
     Snapshot,
@@ -42,35 +44,62 @@ defmodule Genesis.Persistence.Actions do
           opts :: keyword()
         ) :: {:ok, map()} | {:error, term()}
   def commit(principal, before, next, receipt, opts \\ []) do
+    with {:ok, result, _scene} <- commit_prepared(principal, before, next, receipt, opts),
+         do: {:ok, result}
+  end
+
+  @spec commit_prepared(
+          principal :: map(),
+          before :: map(),
+          next :: map(),
+          receipt :: map(),
+          opts :: keyword()
+        ) :: term()
+  def commit_prepared(principal, before, next, receipt, opts) do
     Tx.run(principal.scope.world_id, fn world ->
       with {:ok, %{status: :active} = current} <- Authority.current(principal),
            true <- current.snapshot_id == principal.snapshot_id,
            snapshot = Repo.get!(Snapshot, principal.snapshot_id),
            :ok <- Transfers.accessible(snapshot.id),
            true <- snapshot.digest == Codec.digest(before),
-           :ok <- LocalTime.admit(Repo.get!(Experience, next.scope.id), before, next),
-           :ok <- capacity(next),
+           exp = Repo.get!(Experience, next.scope.id),
+           :ok <- LocalTime.admit(exp, before, next, :action),
+           {:ok, before, next, receipt, steps} <-
+             ActionTime.prepare(world, exp, before, next, receipt, opts),
+           :ok <- capacity(next, length(steps) + 1),
            {:ok, _validated} <- State.restore(next),
            :ok <- Snapshots.compatible(world, next),
            {:ok, transition} <- Transition.between(before, next) do
         receipt = Map.put(receipt, :time, Genesis.Core.LocalTime.contribution(before, next))
+        opts = Keyword.put(opts, :due_steps, steps)
+
         commit_new(world, snapshot, principal, next, receipt, transition, opts)
+        |> with_scene(next)
       else
         {:error, _reason} = error -> error
         false -> {:error, :stale_snapshot}
         _ -> {:error, :paused}
       end
     end)
+    |> case do
+      {:ok, {result, scene}} -> {:ok, result, scene}
+      error -> error
+    end
   end
 
-  defp capacity(next) do
+  defp with_scene({:ok, result}, next), do: {:ok, {result, next}}
+  defp with_scene(error, _next), do: error
+
+  defp capacity(next, additional) do
     count =
       Repo.aggregate(
         from(e in Event, where: e.experience_id == ^next.scope.id and not is_nil(e.actor_id)),
         :count
       )
 
-    if count < 200 and length(next.events) <= 200, do: :ok, else: {:error, :capacity_limit}
+    if count + additional <= 200 and length(next.events) <= 200,
+      do: :ok,
+      else: {:error, :capacity_limit}
   end
 
   defp commit_new(world, snapshot, principal, next, receipt, transition, opts) do
@@ -78,6 +107,7 @@ defmodule Genesis.Persistence.Actions do
 
     case Tx.receipt(world.id, snapshot.scope_key, principal.user_id, receipt.id, payload) do
       :new ->
+        save_due!(world, principal, snapshot, Keyword.get(opts, :due_steps, []), opts)
         Snapshots.save!(snapshot, next)
         [effect] = receipt.effects
 
@@ -114,6 +144,20 @@ defmodule Genesis.Persistence.Actions do
       error ->
         error
     end
+  end
+
+  defp save_due!(_world, _principal, _snapshot, [], _opts), do: :ok
+
+  defp save_due!(world, principal, snapshot, steps, opts) do
+    LocalAdvance.save!(
+      world,
+      Repo.get!(Experience, principal.scope.id),
+      snapshot,
+      steps,
+      principal.user_id,
+      Keyword.get(opts, :clock, Clock.system()),
+      Authority.audience_users(principal, %{audience: :gm})
+    )
   end
 
   @spec fault(opts :: keyword(), stage :: atom()) :: :ok

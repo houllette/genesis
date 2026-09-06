@@ -176,10 +176,12 @@ defmodule Genesis.Core.Companions do
   defp response(_npc, _actor, _type), do: {:error, :invitation_required}
 
   @spec anchored?(state :: map(), actor :: String.t()) :: boolean()
-  def anchored?(%{settlement: nil}, _actor), do: false
-
   def anchored?(state, actor),
-    do: actor in [state.settlement["merchant_id"], state.settlement["representative_id"]]
+    do:
+      (not is_nil(state.settlement) and
+         actor in [state.settlement["merchant_id"], state.settlement["representative_id"]]) or
+        (not is_nil(state.timeline) and
+           Enum.any?(state.timeline["schedules"], fn {_, row} -> row["actor_id"] == actor end))
 
   @spec party(state :: map(), leader :: String.t()) :: {:ok, [String.t()]} | {:error, atom()}
   def party(state, leader) do

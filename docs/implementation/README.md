@@ -53,11 +53,13 @@ The final `mix precommit` passed 342 tests; separate Dialyzer and asset checks p
 See the current handoff's closeout for the explicit Phase 08 entry checks and
 Browser QA deferral. Phase 07 is published as `9d41176`, with
 [successful GitHub CI](https://github.com/houllette/genesis/actions/runs/33993626247).
-**Phase 08 is in progress**: [08A](08-living-time/handoff.md) adds explicit scene
-time, sourced action-duration inspection, completion totals/outcomes and a pinned
-Gregorian/Coptic calendar adapter. Positive-time and multi-Experience publication
-remain gated pending ordered due-work/candidate preparation. Phase 08 changes are
-uncommitted; phases 09–16 are not started.
+**Phase 08 implementation is delivered within its documented bounds**:
+[the current handoff](08-living-time/handoff.md) covers local/multi-place time,
+dated laws, parallel ordered candidates, durable workers, exclusion/correction,
+atomic timed publication and native review. 08A is published as `d860d7f`, with
+CI repair `7dbf1b5` green remotely; the remaining work is included in the Phase 08
+completion commit. That earlier CI result does not cover the completion commit.
+Consult the handoff's final gate before starting Phase 09. Phases 09–16 are not started.
 The user's complexity concern is retained: defer broad UI refinement, keep new
 controls progressive, and fix workflow/authority problems when they arise.
 All 17 folders have briefs;
@@ -157,9 +159,8 @@ scale are not first-delivery requirements.
 
 ## Assigning a fresh agent
 
-> Continue phase 08 from `docs/implementation/08-living-time/handoff.md`,
-> validating 08A and the published Phase 07 predecessor before extending time or
-> multi-Experience reconciliation. Follow `AGENTS.md`
+> Validate `docs/implementation/08-living-time/handoff.md` before beginning Phase 09,
+> including its full local gate, dated-work tests and publication recovery. Follow `AGENTS.md`
 > and the current shared contracts. Validate the predecessor's actual handoff
 > and regression commands first. Work through this phase using red–green–refactor,
 > run `mix precommit`, and record exact evidence and next-agent entry checks in

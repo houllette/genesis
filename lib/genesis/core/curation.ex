@@ -1,6 +1,6 @@
 defmodule Genesis.Core.Curation do
   @moduledoc "Typed authoring reducer. Notes, plans and persona are never action facts or autonomous agents."
-  alias Genesis.Core.{Actor, Item, Persona, Scope, Settlement, State}
+  alias Genesis.Core.{Actor, Item, Persona, Schedule, Scope, Settlement, State}
 
   @spec apply(state :: State.t(), id :: String.t(), attrs :: map(), character :: Actor.t() | nil) ::
           {:ok, State.t()} | {:error, atom()}
@@ -18,7 +18,7 @@ defmodule Genesis.Core.Curation do
 
   defp valid_attrs?(%{"kind" => kind, "name" => name} = attrs),
     do:
-      kind in ~w(zone npc pc item stock settlement) and Scope.id?(name) and
+      kind in ~w(zone npc pc item stock settlement schedule) and Scope.id?(name) and
         Map.keys(attrs) -- allowed_fields(kind) == []
 
   defp valid_attrs?(_attrs), do: false
@@ -29,6 +29,7 @@ defmodule Genesis.Core.Curation do
     do: ~w(kind name visibility companion_policy) ++ Persona.editable_fields()
 
   defp allowed_fields("pc"), do: ~w(kind name)
+  defp allowed_fields("schedule"), do: Schedule.fields()
   defp allowed_fields("item"), do: ~w(kind name quantity visibility)
   defp allowed_fields("stock"), do: ~w(kind name commodity quantity owner_id reason)
 
@@ -38,6 +39,9 @@ defmodule Genesis.Core.Curation do
 
   defp record(state, id, %{"kind" => "settlement"} = attrs, _character),
     do: Settlement.configure(state, id, attrs)
+
+  defp record(state, id, %{"kind" => "schedule"} = attrs, _character),
+    do: Schedule.configure(state, id, attrs)
 
   defp record(state, id, %{"kind" => "stock"} = attrs, _character),
     do: Settlement.stock(state, id, attrs)

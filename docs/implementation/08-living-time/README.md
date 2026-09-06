@@ -1,10 +1,9 @@
 # Phase 08 — Experience completion, fictional time and incorporation
 
-Status: **in progress**. 08A delivers the local-time/completion foundation and a
-bounded Gregorian/Coptic calendar adapter. See [the actual handoff](handoff.md).
-This is not completion of the full phase: ordered due work, multi-place time,
-parallel timeline preparation, resumable workers and positive-time publication
-remain. Do not begin Phase 09 or remove the publication/travel guards yet.
+Status: **complete within documented bounds**. See
+[the current handoff](handoff.md) for local due work, multi-place time, parallel
+preparation, durable workers, timed publication and exact validation. Phase 09
+must validate that handoff before extending it. Browser QA is user-deferred.
 
 ## Validate phase 07 first
 
@@ -102,19 +101,20 @@ GM impact/reconciliation views. Build these slices across fresh runs if needed.
 
 ## Handoff criteria
 
-- [ ] Meeting end, logout, idleness and restart never advance fictional time.
-- [ ] Completion seals recorded choices and coherent duration; all pending states
+- [x] Meeting end, logout, idleness and restart never advance fictional time.
+- [x] Completion seals recorded choices and coherent duration; all pending states
   and paused deadlines survive recovery.
-- [ ] Independent experiences coexist; conflicting assignments/claims fail clearly.
-- [ ] Concurrent durations use max end; local and global due effects run once.
-- [ ] Tempo calendar/interval fixtures prove supported conversions, boundary
+- [x] Independent experiences coexist; conflicting assignments/claims fail clearly.
+- [x] Concurrent durations use max end; local and global due effects run once.
+- [x] Tempo calendar/interval fixtures prove supported conversions, boundary
   behavior, version/precision preservation and capped recurrence expansion.
   Unsupported fantasy calendars fail explicitly; no Gregorian fallback is hidden.
-- [ ] Candidate preparation is bounded/resumable; conflicts need actionable review.
-- [ ] Canonical snapshots/events/calendar/publication receipt commit atomically;
+- [x] Candidate preparation is bounded/resumable; conflicts need actionable review.
+- [x] Canonical snapshots/events/calendar/publication receipt commit atomically;
   retries and stale confirmations cannot create partial or duplicate history.
-- [ ] The GM can explain and approve Ashfall's changes through native UI.
-- [ ] mix precommit passes; [handoff.md](handoff.md) records state transitions,
+- [x] The GM can explain and approve Ashfall's changes through native UI (LiveView
+  coverage; Browser QA explicitly user-deferred).
+- [x] mix precommit passes; [handoff.md](handoff.md) records state transitions,
   actual schema/API, target/ordering semantics, crash tests and browser evidence.
 
 Phase 09 first validates this phase's actual handoff and focused

@@ -81,18 +81,20 @@ separate from canonical facts. Run `mix ecto.migrate` for `world_standings` and
 Phase 07 is published as `9d41176`; its GitHub CI passed. Browser QA remains user-deferred.
 Never use the ephemeral fixture mode for real adventures.
 
-**Phase 08A (in progress, uncommitted)** adds explicit scene time and completion
-to the existing Experience review screen. Inspect recorded action durations, add
-explained scene time in a single-place Experience, then finish with a total that
-includes—not adds to—time already recorded. Completed, failed and abandoned
-outcomes keep their actual expenditures; optional needs-review status holds them
-for later reconciliation. Sealing still does not publish or release claims.
-Positive-time and multi-Experience publication are not enabled yet.
+**Phase 08** adds explicit local time, dated routines and whole-window review.
+Finish each adventure with a total including recorded play, then use **Review
+world advancement** to include/exclude outcomes, prepare bounded background work,
+inspect changes and publish once. Parallel durations use the latest end, not their
+sum. Visited places can catch up without charging adventure time twice. Excluded
+rewards remain local; original play records and costs are retained. 08A is pushed
+as `d860d7f` (CI synchronization repair `7dbf1b5`); the remaining implementation is
+included in the Phase 08 completion commit. Phase 09 has not started.
 
 New-world creation has collapsed optional Gregorian/Coptic calendar controls with
 an explicit epoch; existing ordinal worlds are unchanged. Month/year arithmetic
-uses that pinned calendar. Run `mix ecto.migrate` for the additive `worlds.calendar`
-column and restart the development server before manual use. See the
+uses that pinned calendar, including capped recurrence and half-open availability.
+Run `mix ecto.migrate` for calendar mappings and timeline preparations, then restart
+the development server before manual use. See the
 [Phase 08 handoff](docs/implementation/08-living-time/handoff.md) for exact limits,
 validation and the next implementation slices.
 

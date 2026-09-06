@@ -141,7 +141,8 @@ defmodule Genesis.Persistence.Transfers do
   defp plan(scope, world, exp_id, actor, destination, exchange) do
     with {:ok, exp} <- Experiences.get(scope, world.id, exp_id),
          {:ok, principal, source_row} <- Authority.principal(scope, world.id, exp_id, actor),
-         true <- exp.status == "active" and actor in exp.participants,
+         true <-
+           exp.status == "active" and principal.status == :active and actor in exp.participants,
          :ok <- accessible(source_row.id),
          {:ok, source} <- Snapshots.load(source_row),
          %{kind: :pc} <- source.actors[actor],
@@ -156,8 +157,9 @@ defmodule Genesis.Persistence.Transfers do
            ),
          {:ok, footprint} <- Footprints.snapshots(exp),
          {:ok, states} <- Footprints.load(footprint),
-         :ok <- zero_elapsed(states),
+         true <- source.elapsed == Enum.max(Enum.map(states, fn {_, scene} -> scene.elapsed end)),
          {:ok, dest_row, dest} <- Footprints.destination(world, exp, source, destination),
+         true <- not is_nil(dest_row) or exp.start_offset == 0,
          :ok <- if(dest_row, do: accessible(dest_row.id), else: :ok),
          {:ok, _, _} <- Transfer.execute(source, dest, actor, exchange, "preview") do
       token = %{
@@ -186,12 +188,6 @@ defmodule Genesis.Persistence.Transfers do
       {:error, _} = error -> error
       _ -> {:error, :unavailable}
     end
-  end
-
-  defp zero_elapsed(states) do
-    if Enum.all?(states, fn {_row, scene} -> scene.elapsed == 0 end),
-      do: :ok,
-      else: {:error, :time_reconciliation_unavailable}
   end
 
   defp prepare(scope, world, principal, token, request, id, payload, old) do

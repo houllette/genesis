@@ -5,7 +5,7 @@ defmodule Genesis.Persistence.LocalTimeFootprintTest do
   alias Genesis.Campaigns
   alias Genesis.Engine.{Runtime, Session, WorldSupervisor}
   alias Genesis.Experiences
-  alias Genesis.Persistence.{Experience, Seals}
+  alias Genesis.Persistence.{Experience, LocalTime, Seals}
   alias Genesis.Travel
 
   setup tags do
@@ -131,15 +131,19 @@ defmodule Genesis.Persistence.LocalTimeFootprintTest do
   end
 
   @tag positive: true
-  test "timed actions and scene entries cannot create divergent clocks across visited places",
+  test "timed actions use one cursor and explicit catch-up enables travel without double charging",
        ctx do
     before = working(ctx, "docks")
     {:ok, _} = Session.propose(ctx.session, "help", %{type: "help", target_id: "docks-merchant"})
-    assert {:error, :multi_zone_time_unavailable} = Session.confirm(ctx.session, "help", "help")
-    assert working(ctx, "docks") == before
-    duration = %{"unit" => "second", "value" => 1, "reason" => "Would diverge"}
+    assert {:ok, _} = Session.confirm(ctx.session, "help", "help")
+    assert working(ctx, "docks").elapsed == before.elapsed + 60
 
-    assert {:error, :multi_zone_time_unavailable} =
+    assert {:error, :time_reconciliation_unavailable} =
+             Travel.preview(ctx.owner, ctx.world.id, ctx.experience.id, "mara", "bridge")
+
+    duration = %{"unit" => "second", "value" => 0, "reason" => "Catch the bridge up to the party"}
+
+    assert {:ok, _} =
              Runtime.call(
                ctx.owner,
                ctx.world.id,
@@ -147,7 +151,26 @@ defmodule Genesis.Persistence.LocalTimeFootprintTest do
                 "time"}
              )
 
-    assert working(ctx, "bridge").elapsed == 0
-    assert working(ctx, "docks").elapsed == 0
+    assert working(ctx, "bridge").elapsed == 60
+    assert working(ctx, "docks").elapsed == 60
+
+    assert {:ok, preview} =
+             Travel.preview(ctx.owner, ctx.world.id, ctx.experience.id, "mara", "bridge")
+
+    assert {:ok, _} =
+             Travel.move(
+               ctx.owner,
+               ctx.world.id,
+               ctx.experience.id,
+               "mara",
+               preview.token,
+               "return"
+             )
+
+    assert {:ok, summary} =
+             LocalTime.summary(Repo.get!(Experience, ctx.experience.id))
+
+    assert summary.elapsed_seconds == 60
+    assert working(ctx, "bridge").actors["mara"].resources["effort"] == 9
   end
 end

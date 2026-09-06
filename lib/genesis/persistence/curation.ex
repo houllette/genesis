@@ -5,6 +5,7 @@ defmodule Genesis.Persistence.Curation do
   alias Genesis.Core.{FictionalTime, Scope, State}
   alias Genesis.Persistence.{Access, Codec, Draft, Snapshot, Snapshots, Transition, Tx, Window}
   alias Genesis.{Repo, Systems, Worlds}
+  alias Genesis.Time.Calendar
 
   @spec create_zone(
           scope :: term(),
@@ -76,6 +77,7 @@ defmodule Genesis.Persistence.Curation do
     with true <- before.revision == op.revision and snapshot.digest == Codec.digest(before),
          :ok <- existing_reference(before, op.id, op.attrs),
          {:ok, character} <- character(world, id, op.attrs),
+         :ok <- calendar_schedule(world, before, op.attrs),
          {:ok, next} <- Reducer.apply(before, id, op.attrs, character) do
       {scene, result} = save_edit(world, user, snapshot, before, next, id, op.attrs)
       Tx.remember!(world.id, "authoring", user, op.request, payload, result)
@@ -109,6 +111,13 @@ defmodule Genesis.Persistence.Curation do
   end
 
   defp existing_reference(_state, nil, _attrs), do: :ok
+
+  defp existing_reference(state, id, %{"kind" => "schedule"}) do
+    if state.timeline && Map.has_key?(state.timeline["schedules"], id),
+      do: :ok,
+      else: {:error, :unavailable}
+  end
+
   defp existing_reference(state, id, %{"kind" => "zone"}) when id == state.zone_id, do: :ok
 
   defp existing_reference(state, id, %{"kind" => kind}) when kind in ["npc", "pc"] do
@@ -130,6 +139,20 @@ defmodule Genesis.Persistence.Curation do
   end
 
   defp character(_world, _id, _attrs), do: {:ok, nil}
+
+  defp calendar_schedule(world, state, %{
+         "kind" => "schedule",
+         "every" => amount,
+         "first_at" => at
+       })
+       when is_integer(at) and is_map(amount) do
+    case Calendar.duration(%{state.time | value: at}, amount, world.calendar) do
+      {:ok, value} when value > 0 -> :ok
+      _ -> {:error, :unsupported_calendar}
+    end
+  end
+
+  defp calendar_schedule(_world, _state, _attrs), do: :ok
 
   defp empty_scene(world, id, attrs) when is_map(attrs) do
     with true <- Map.keys(attrs) -- ~w(name description) == [] and Scope.id?(attrs["name"]),
@@ -224,5 +247,5 @@ defmodule Genesis.Persistence.Curation do
 
   @spec window_open?(world_id :: String.t()) :: boolean()
   def window_open?(world),
-    do: Repo.exists?(from w in Window, where: w.world_id == ^world and w.status == "open")
+    do: Repo.exists?(from w in Window, where: w.world_id == ^world and w.status != "closed")
 end

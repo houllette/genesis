@@ -79,6 +79,32 @@ defmodule Genesis.Time.Calendar do
     end
   end
 
+  @doc "A point belongs to [from, to); ordinal worlds use explicit integer coordinates, mapped calendars use Tempo intervals."
+  @spec contains?(
+          time :: FictionalTime.t(),
+          from :: integer(),
+          to :: integer(),
+          definition :: map()
+        ) :: boolean()
+  def contains?(time, first, last, frame)
+      when is_integer(first) and is_integer(last) and first < last do
+    if frame == %{} do
+      FictionalTime.valid?(time) and first <= time.value and time.value < last
+    else
+      with {:ok, point} <- point(time, frame),
+           {:ok, start} <- point(%{time | value: first}, frame),
+           {:ok, finish} <- point(%{time | value: last}, frame),
+           {:ok, interval} <- Tempo.Interval.new(start, finish) do
+        Tempo.Compare.compare_endpoints(Tempo.Interval.from(interval), point) in [:earlier, :same] and
+          Tempo.Compare.compare_endpoints(point, Tempo.Interval.to(interval)) == :earlier
+      else
+        _ -> false
+      end
+    end
+  end
+
+  def contains?(_time, _first, _last, _frame), do: false
+
   defp point(time, frame) do
     with :ok <- validate(frame),
          true <- FictionalTime.valid?(time),

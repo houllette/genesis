@@ -66,6 +66,7 @@ defmodule Genesis.Core.Transfer do
     with {:ok, _} <- State.restore(source),
          {:ok, _} <- State.restore(destination),
          :ok <- compatible(source, destination),
+         :ok <- route_available(source, destination),
          %{alive: true, retired: false, companion_of: nil} <- source.actors[actor],
          false <- Map.has_key?(destination.actors, actor),
          {:ok, party} <- Companions.party(source, actor),
@@ -138,7 +139,13 @@ defmodule Genesis.Core.Transfer do
   defp same_experience?(a, b),
     do: a.scope == b.scope and a.scope.kind == :experience and a.zone_id != b.zone_id
 
-  defp same_time?(a, b), do: a.elapsed == 0 and b.elapsed == 0 and a.time == b.time
+  defp route_available(a, b) do
+    if Enum.any?([a, b], &((&1.timeline || %{})["condition"] == "closed")),
+      do: {:error, :route_closed},
+      else: :ok
+  end
+
+  defp same_time?(a, b), do: a.elapsed == b.elapsed and a.time == b.time
 
   defp movable(state, party),
     do:

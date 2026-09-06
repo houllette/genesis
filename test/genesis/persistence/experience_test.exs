@@ -41,7 +41,7 @@ defmodule Genesis.Persistence.ExperienceTest do
     assert_enqueued(worker: Genesis.Persistence.DeliverEvent)
   end
 
-  test "start offsets are unavailable and snapshot corruption or pin drift fails closed" do
+  test "invalid start offsets and snapshot corruption or pin drift fail closed" do
     ctx = world_fixture()
 
     assert {:error, :invalid_experience} =
@@ -49,7 +49,7 @@ defmodule Genesis.Persistence.ExperienceTest do
                ctx.owner,
                ctx.world.id,
                ctx.campaign.id,
-               %{"name" => "Future", "zone_id" => "bridge", "start_offset" => 1},
+               %{"name" => "Future", "zone_id" => "bridge", "start_offset" => -1},
                "future"
              )
 

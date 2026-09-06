@@ -13,6 +13,8 @@ defmodule Genesis.Persistence.Incorporation do
   alias Genesis.Persistence.Publication
   alias Genesis.Persistence.Snapshot
   alias Genesis.Persistence.Snapshots
+  alias Genesis.Persistence.TimedPlan
+  alias Genesis.Persistence.TimedPublication
   alias Genesis.Persistence.Transition
   alias Genesis.Persistence.Tx
   alias Genesis.Persistence.Window
@@ -55,7 +57,7 @@ defmodule Genesis.Persistence.Incorporation do
     Tx.run(world, fn record ->
       with {:ok, user} <- Access.user_id(scope),
            true <- Scope.id?(request),
-           {:ok, current} <- IncorporationPlan.prepare(scope, record, prepared.experience.id),
+           {:ok, current} <- reprepare(scope, record, prepared.manifest, prepared.experience.id),
            true <- current.id == prepared.id,
            false <-
              Repo.exists?(
@@ -105,7 +107,7 @@ defmodule Genesis.Persistence.Incorporation do
              {:ok, user} <- Access.user_id(scope),
              true <- current.principal_id == user and current.generation == world.generation,
              {:ok, prepared} <-
-               IncorporationPlan.prepare(scope, world, current.experience_id, op.id),
+               reprepare(scope, world, current.manifest, current.experience_id, op.id),
              true <- prepared.id == current.preview_id and prepared.manifest == current.manifest do
           result = commit(world, user, prepared, current.request_id)
           Tx.update!(current, %{status: "committed", result: result})
@@ -119,6 +121,17 @@ defmodule Genesis.Persistence.Incorporation do
       op.id
     )
   end
+
+  defp reprepare(scope, world, manifest, experience, operation \\ nil)
+
+  defp reprepare(scope, world, %{"preparation_id" => id}, _experience, _operation),
+    do: TimedPlan.prepare(scope, world, id)
+
+  defp reprepare(scope, world, _manifest, experience, operation),
+    do: IncorporationPlan.prepare(scope, world, experience, operation)
+
+  defp commit(world, user, %{preparation: _} = prepared, request),
+    do: TimedPublication.commit(world, user, prepared, request)
 
   defp commit(world, user, prepared, request) do
     Snapshots.reindex!(
@@ -323,11 +336,19 @@ defmodule Genesis.Persistence.Incorporation do
          snapshots_match?(op, "candidate_digest") and published_ownership?(op) and
          lifecycle_committed?(op) and
          GlobalPublication.matches?(op, "candidate_digest") and
-         GlobalPublication.released?(op.experience_id) and
+         released?(op) and
          Tx.receipt(world.id, "incorporation", op.principal_id, op.request_id, %{
            "preview_id" => op.preview_id
          }) == {:ok, op.result}, do: :ok, else: {:error, :corrupt_publication}
   end
+
+  defp released?(%{manifest: %{"format" => 8}}), do: true
+  defp released?(op), do: GlobalPublication.released?(op.experience_id)
+
+  defp lifecycle_committed?(%{manifest: %{"format" => 8}} = op),
+    do:
+      Repo.get!(World, op.world_id).fictional_time == op.manifest["target"] and
+        TimedPublication.lifecycle_committed?(op)
 
   defp lifecycle_committed?(op) do
     case Repo.get(Experience, op.experience_id) do

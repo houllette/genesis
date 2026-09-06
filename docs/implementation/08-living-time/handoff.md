@@ -1,216 +1,200 @@
-# Handoff: 08 — Experience completion, fictional time and incorporation
+# Handoff: 08 — Living time and window incorporation
 
-Status: **in progress — 08A local-time/completion foundation implemented**.
-The entire Phase 08 gate is not complete. Do not start Phase 09.
-Base: published `9d41176f2f83b907ab3348b2bbe20eaae3a3df79`, plus the current
-uncommitted 08A diff. No Phase 08 work has been committed or pushed.
+Status: **complete within the explicit bounds below**, with final local validation
+recorded at the end. Phase 09 has not been started. Browser QA remains
+explicitly user-deferred, not represented as an automated pass.
 
-## Entry and publication evidence — 2026-09-05
+## Publication and predecessor
 
-The user requested committing/pushing the finished Phase 07 work, then continuing
-Phase 08. Reviewed the 89-file 07B–07D change set against the preceding handoff,
-preserved its scope, ran `mix precommit`: **342 passed**, seed **147270**.
-That full gate includes the listed 07D predecessor regressions plus 03 clock and
-04 temporal/deadline tests; the same suite was not redundantly rerun immediately.
-Committed exactly those paths, pushed `HEAD:main`, and verified the remote SHA.
-[GitHub Actions 33993626247](https://github.com/houllette/genesis/actions/runs/33993626247)
-completed successfully, including its separate Dialyzer job.
+The requested initial publication is complete: `d860d7f` contains 08A, after a fresh
+`mix precommit` passed 365 tests (seed 547840). Remote CI exposed two Phase 07
+recovery barriers using the default 100ms wait for database-backed work. The narrow
+synchronization fix is `7dbf1b5`; its focused file passed 22 tests and its fresh
+precommit passed 365 (seed 207900). Both commits were pushed to main, and
+[GitHub CI 33995604294](https://github.com/houllette/genesis/actions/runs/33995604294)
+passed. The new 08B–08D work described here is included in the Phase 08 completion
+commit; the linked CI run covers only its predecessors.
 
-Read current architecture, experience-time, workflow, Tempo, story/canon and
-subsystem contracts, their product/knowledge/history guidance and the historical
-architecture report. The current GM-first/time contracts remain authoritative.
-The Elixir validation funnel governed focused red/green work and final validation.
-Browser QA remains explicitly user-deferred; native tests do not replace it.
+[The archived 08A handoff](08a-handoff.md) retains calendar, deadline, serialization
+and completion evidence. Its restrictions are historical, not current instructions.
+Read the current architecture, experience-time and Tempo contracts before extending
+these seams. No dependency or shipped migration was changed.
 
-## 08A delivered contracts
+## Local time and dated laws
 
-### Local time, persistence and ownership
+- Zones remain single writers. Local scene time and paid actions resolve due
+  effects in their existing Zone transaction. World-owned jobs produce unpublished
+  proposals, never independently write working/published Zone caches.
+- Experience cursor = maximum elapsed among visited snapshots. Lagging places
+  must catch up before acting/travelling. Catch-up runs their laws, not the elapsed
+  adventure total again. **Do not sum per-place ledger contributions.** Travel is
+  still a zero-duration relocation; explicitly record journey time as scene time.
+- `experiences.start_offset` is a nonnegative offset from the pinned world base.
+  Starting records individual pre-start due transitions, then sets play elapsed
+  to zero. Pre-start effects are not extra Experience duration. Setup is bounded
+  and atomic; an over-cap start writes no partial state or claims.
+- Paid actions spanning due points retain the proposal and captured dice inputs.
+  `ActionTime` applies due laws, revalidates the original terms, and resolves with
+  those same inputs. Due transitions and the action commit together; duration and
+  costs are charged once. Changed quotes/preconditions reject the entire transaction,
+  never silently refresh a confirmation. The GM may explicitly advance a scene
+  boundary before requesting new terms. Replay/incorporation use recorded results.
 
-- Existing reducers already advance `State.time` and `State.elapsed` for paid
-  actions. New accepted action logs additionally carry a version-1 `time` map:
-  exact from/to coordinate, elapsed before/after, seconds, calendar ID/version
-  and second unit. This is persisted with the original transition/event/receipt,
-  not a second action or a separate mutable ledger table.
-- `Core.LocalTime` provides pure scene advancement, contribution data and
-  completion validation. `Persistence.LocalTime.summary/1` derives the Experience
-  cursor from bounded owned snapshots and their original immutable checkpoints.
-  It checks time/elapsed coherence and accepted event coordinates. It does not
-  compare an old Experience against a subsequently changed published snapshot.
-- `Runtime.call(scope, world, {:status, experience, {:elapse, amount},
-  origin_revision, request_id})` is the native GM scene-time command. `amount`
-  is a closed string-key map with `unit`, integer `value`, and nonblank `reason`.
-  It runs through the existing World command coordinator and owning Zone.
-  Active status, current GM access, revision, reservations and duration are checked
-  before committing a snapshot transition, metadata ExperienceEvent and receipt.
-- Scene time changes no inventory/resources by itself. It records an explicit
-  duration, not a production/consumption simulation. Zero duration is a real
-  sourced point with a new revision; it is not widened to a one-second interval.
-  Rejections and exact retries do not add time. New scene logs retain the original
-  input, resolved seconds, calendar mapping and `local-time-v1` policy.
-- Until multi-place time coordination exists, **positive-time actions and scene
-  entries require a one-place admitted footprint**. Returning from another place
-  does not shrink that footprint. Zero-time multi-zone play remains supported.
-  Existing positive-time travel and publication guards remain intact.
-- New local advancement and declared totals are capped at **31,622,400 seconds
-  (366 fixed 24-hour days)**. Existing action-level rules retain their own bounds.
-  World/coordinate bounds are separate. No local/candidate job, recurrence or timer
-  was added; Oban still runs the existing durable outbox, manual in tests.
+`Core.Schedule`, `DueWork`, `TimeSteps`, `RecordedChange` and `Timeline` are pure.
+Definitions live in optional versioned `State.timeline`. Codec still omits nil
+fields, preserving old checkpoint bytes/digests. Curation requires increasing
+versions and a first point strictly after the current coordinate. No wall date,
+gathering end, login, timer or restart chooses a fictional target.
 
-### Completion, review binding and recovery
+Scheduled `produce`, `rest` (consumption), `disrupt` (authorized merchant loss),
+`offer` (obligation) and `adjudicate` (institutional review) reuse Phase 06 laws and
+real stock. They require a living local NPC, never an implicitly automated PC.
+This is deterministic GM-authored work, not LLM autonomy or a hot NPC process.
+Scheduled NPCs remain anchored to their place. Faction-wide autonomous planning
+is not implemented here.
 
-`Runtime.call(scope, world, {:status, experience, {:finish, declaration},
-origin_revision, request_id})` is the narrow completion entrypoint. It currently
-requires a real current campaign GM; Phase 09 must supply explicit authorization
-for a published terminal policy, not forge a GM identity.
+`condition` points set normal/harsh/closed place conditions. Harsh halves integer
+production capacity; closed forbids production and travel involving that place.
+A later normal point reopens it. This is the bounded seasonal/route law, not
+weather simulation or automatic journey-time calculation.
 
-The closed declaration has:
+Optional `availability: {from, to}` is half-open, so a due point at `to` is outside.
+Mapped Gregorian/Coptic calendars use installed Tempo 1.6.4 interval endpoints;
+ordinal worlds use explicit integer spans, never a hidden Gregorian epoch.
+Recurrences support fixed seconds/minutes/hours/days and mapped months/years.
+Each relative recurrence shifts the previous occurrence with Tempo's clamp rules,
+not a fixed 30-day month or an original-month-day anniversary guarantee.
+Unsupported relative calendars reject. Points are cursor-exclusive and target-
+inclusive; equal-time due points use stable zone/schedule ordering.
 
-- `elapsed_seconds`: total including recorded play, **not additional duration**;
-- `outcome`: `completed`, `failed` or `abandoned`;
-- `reason`: nonblank explanation, at most 2,048 bytes;
-- `basis`: full footprint/global-dependency review digest, from
-  `Workspace.experience_review/3` (or internal `Seals.basis/1`);
-- optional boolean `review_required`: true seals into `needs_review`, otherwise
-  `ready`.
+Occurrence IDs hash world, generation, zone, schedule ID/version and coordinate,
+not execution scope or batch. Exhausted work records one skip without creating
+stock. Cross-zone condition dependencies retain an observed causal parent/root
+when present. Causal depth is capped at 8. Arbitrary spawned schedules/effect
+fan-out are rejected (spawn fan-out is zero); authored schedule/work caps bound
+all expansion. Schedules have no authority to publish anything.
 
-The declaration must cover the recorded cursor. A larger total is retained as the
-end-of-adventure duration for later timeline preparation; it does **not** move
-local action timestamps, run due work, or add the already recorded time twice.
-Actual failed/abandoned expenditures and source events remain intact.
+## Window preparation and reconciliation
 
-The basis binds all visited snapshot digests, base references, claims, event
-identities/payload digests, optional global dependencies and the calendar mapping.
-A destination change invalidates finish even if the origin revision is unchanged.
-No UI confirmation silently rebases its form's captured basis. Same request with
-a changed declaration conflicts; the caller must retry an ambiguous result with
-the original payload.
+Migration `20260905223006_add_timeline_preparations.exs` adds the offset and
+`timeline_preparations`, widens the unique active-window index to all nonclosed
+windows, and permits a null incorporation Experience ID for whole-window/downtime
+publication. Legacy start receipts missing the new field restore offset zero.
 
-Finish freezes the configured deadline remainder, fences further play across the
-Experience and captures **completion format 3** in the same transaction. It adds
-a principal-scoped stable completion ID, declared total, recorded elapsed time and
-the declaration to the existing footprint seal. Validation checks the matching
-immutable completion source and expected ready/needs-review status, not only a
-mutable completion map. Claims remain held. A zero-time format-3 ready completion
-can use the existing one-Experience publication path; positive declared totals
-cannot, even when every snapshot still has zero elapsed time.
+Window: open → sealed → closed; cancellation reopens it. Preparation: preparing →
+ready / needs_review → published or cancelled. Completion ready/needs_review still
+holds claims. Publication closes included adventures as incorporated, exclusions
+as closed_without_publication. Original snapshots/seals remain; new adventures
+load published state, never excluded working rewards.
 
-Legacy `:ready` and formats 1/2 remain readable for compatibility. Existing empty
-calendar/global seals retain their encoding; no old snapshots, bundles, temporal
-facts or receipts are rewritten. New nonempty calendar mappings join the seal.
-There is no reopening, correction/exclusion, review-clear or reward-export path yet.
+Preparation requires current steward and GM access to **every admitted adventure**,
+a decision/reason for each, valid seals/claims/checkpoints/replay and unchanged
+calendar/global dependencies. Sealing fences admission and working mutations;
+authoring becomes drafts. Independent DB connections serialize on the World row.
 
-Fault tests kill the owning Zone at `control_before_commit`,
-`control_after_commit` and `control_after_install`, for both scene time and
-finish. Before commit everything rolls back; after commit the cold owner reloads
-the saved result. Same-ID retry creates one transition/event and one time change.
-Replay uses recorded transitions, not fresh duration arithmetic, draws or clocks.
+Target = `base + max(included start_offset + reviewed total, default 0) + approved
+additional downtime`. Totals already include recorded play. Corrections cannot
+precede recorded play or retime choices. All excluded plus zero downtime advances
+zero. A decision has mode include/exclude, nonblank reason and optional
+elapsed_seconds override; original completion remains unchanged.
 
-### Calendar qualification and native workflow
+Manifests bind generation/world revision, completion digests/decisions/offsets,
+sources, calendar, target, policy and base digests. Work/digest persist candidate
+states, ordered records, generated occurrences, cursor, processed count and conflicts.
+`PrepareTimeline` reloads the stored principal's current authority and executes
+one bounded batch through World. Jobs carry only preparation/world/generation;
+restart and duplicate/late terminal deliveries cannot invent extra time.
 
-The only new migration is
-`20260905214235_add_world_calendar_mapping.exs`: additive `worlds.calendar`
-jsonb/default empty map. Worlds may set it **at creation only**, through the
-existing native world-library form or `Worlds.create_world/4`. Existing ordinal
-worlds keep their calendar identity and empty mapping; no hidden Gregorian epoch
-is assigned.
+Timeline ordering: due points first, then commit cursor for equal-time local
+records. Local due work is checked against its candidate occurrence and published
+once with its source link. Multiple same-coordinate occurrences are checked
+individually. Other records apply checked deltas/read dependencies; **terminal
+working snapshots are not last-writer-wins replacements**. Conservative same-place
+read checks can require review where a looser merge might be possible. Prior
+stock/condition/resource conflicts never cause rerolls or model merges.
 
-A mapping is a closed version-1 map: `format`, `id`, `version`,
-`implementation` (`gregorian` or `coptic`) and an explicit midnight `epoch`
-with integer year/month/day. Reviewed modules are allowlisted; no user module
-lookup or atom creation. Calendar years 1–9999 are the supported display range.
-Pre-epoch coordinates work within that range. Unsupported/malformed mappings,
-incompatible calendar versions/worlds, fractional seconds and out-of-range
-coordinates reject explicitly.
+Conflicts identify place, coordinate and source. Cancel and prepare explicit revised
+duration decisions or exclude the conflicting adventure. No automatic rewrite of
+recorded choices exists. Audience-bounded window notices retain original/reviewed
+totals and GM reasons; reasons should be shareable with affected participants.
+Historical private event audiences are not widened by later membership.
 
-`Time.Calendar` uses the installed **ex_tempo 1.6.4**:
-`Tempo.new/1`, `shift/2`, `to_naive_date_time/1` and
-`Interval.new/2` / `relation/2`. It preserves second precision and supports
-clamped calendar-relative months/years (including a 366-day year), not fixed
-30-day months. Fixed second/minute/hour/day durations remain available to ordinal
-worlds. Adjacent half-open spans meet without overlap; empty spans reject so point
-events cannot be widened accidentally. This is adapter qualification, **not**
-scheduled market/season/observance or recurrence support.
+## Native workflow and publication
 
-No routes were added. The existing authenticated WorldLibraryLive and ReviewLive
-routes remain in the `[:browser, :require_authenticated_user]` pipeline and
-`:require_authenticated_user` live_session; GM/steward authorization is still
-enforced in contexts. Calendar creation controls are collapsed. Review now shows
-the streamed, source-linked time ledger, explicit scene-time form and finish
-outcome/total/reason controls, with optional needs-review status. Native tests
-cover creation → calendar-relative scene → saved local time, and paid action →
-scene time → abandoned completion with publication still unavailable.
+`/worlds/:world_id/time` uses the existing authenticated browser pipeline and
+require_authenticated_user live_session. Context checks additionally require steward
+and all-window GM authority. It provides decisions, downtime, batch progress,
+before/after people/resources/knowledge/conditions, cancellation and separate
+preview/confirmation. Schedule creation is collapsed and typed, not JSON. Review
+links to it; travel offers explicit place admission/catch-up; Experience creation
+has a collapsed start-offset field. No broad UI polish or Phase 09 story work.
 
-Ledger entries/explanations require current GM access **and the frozen event
-audience**. A newly added GM sees the permitted current cursor but not an earlier
-private time explanation. Source navigation uses the existing authenticated
-history entry, which rechecks access independently. No new player host or model
-integration is implied.
+Runtime commands (current scope passed separately):
 
-## Verification
-
-Focused command for the new slice:
-
-```sh
-mix test test/genesis/core/calendar_test.exs test/genesis/persistence/local_time_test.exs test/genesis/persistence/local_time_footprint_test.exs test/genesis_web/live/world_library_live_test.exs test/genesis_web/live/review_live_test.exs --warnings-as-errors
+```elixir
+{:admit_place, experience_id, zone_id}
+{:scene_time, experience_id, zone_id, amount, revision, request_id}
+{:prepare_time, %{"decisions" => decisions, "downtime_seconds" => seconds,
+                 "reason" => reason}, request_id}
+{:step_time, preparation_id, generation} # normally the durable worker
+{:cancel_time, preparation_id, digest, reason}
+{:preview_time, preparation_id}
+{:incorporate, preview_id, request_id} # existing fenced publication
 ```
 
-Meaningful initial red: scene/finish commands returned `:command_interrupted`
-because their tuple was not supported by the old command codec/path. Tests then
-verified concrete durations, costs, sealed totals and the positive-total
-publication guard. Calendar qualification began with the absent adapter and
-asserted exact non-Gregorian results after implementation. The fixture initially
-bound a PC after starting its claimed Experience; corrected fixture setup binds
-before start, matching the real authority contract.
+`amount` retains unit/value/reason. Preserve request IDs on ambiguous retries.
+Preview binds candidate hashes, target, base and manifest, not just displayed time.
+The old zero-time APIs remain supported. One transaction saves snapshots/indexes,
+source-linked WorldEvents, global standings, calendar/revision, statuses, releases,
+receipt and outbox. The existing ledger fences readers until every Zone cache is
+installed. Audit events retain occurrence dates; snapshot transitions represent
+an atomic publication batch, not arbitrary as-of state at its interior event dates.
 
-Focused new/changed families passed **26 tests**, seed **210006**, before the final
-zero-duration/invalid-input test. The 03 clock/04 deadline and replay family also
-passed alongside earlier new tests (**22 tests**, seed **27290**), including
-three real weeks, supervised clock injection and backward wall/monotonic tests.
+Hard bounds: 8 published places per prepared window, 16 adventures, 16 schedules
+per place, 512 source records, 1,024 timeline work steps, 32 steps per worker batch
+(maximum 64), 64 local occurrences per command/start, and the existing 2MB Codec
+payload limit. Approval spans/offsets/totals are at most 366 fixed days. Limits
+reject or require review, never silently truncate. Larger worlds/long-history
+replay require an explicit later capacity design.
 
-The final input-boundary regression first reproduced a `BadMapError` from malformed
-scene parameters. Guarded attribute maps and typed integer parsing now reject
-malformed scene/completion values and revisions without losing the review or
-changing Experience status. The affected LiveView file passed **4 tests**, seed
-**909445**, before refreshing the full gate.
+## Verification and next phase
 
-Final `mix precommit`: **365 passed**, seed **822562** (45.2 seconds), including
-the full suite, warning checks, format, strict Credo, dependency audits, usage-rule
-sync, compile-connected xref and security scan. `git diff --check` is clean.
-Separate `MIX_ENV=test mix dialyzer`: passed, 0 errors/skips, after removing an
-unreachable error branch (no suppression). `mix assets.build` passed.
-Migration: applied successfully in test and development. The existing development
-server was left running; restart it before manually using the new schema/code.
-Browser QA: deliberately deferred by the user. No browser/viewport/accessibility
-acceptance claimed. Remote CI success above covers Phase 07, not this dirty tree.
+Phase 09 entry command:
 
-## Remaining Phase 08 work and next safe grouping
+```sh
+mix test test/genesis/core/due_work_test.exs test/genesis/core/timeline_test.exs test/genesis/persistence/scheduled_time_test.exs test/genesis/persistence/preparations_test.exs test/genesis/persistence/timeline_review_test.exs test/genesis/persistence/timed_race_test.exs test/genesis/persistence/day103_test.exs test/genesis/persistence/local_time_footprint_test.exs test/genesis_web/live/time_live_test.exs --warnings-as-errors
+```
 
-1. **08B — coherent timeline admission and due work.** Add bounded, versioned
-   schedules and stable occurrence IDs, explicit local/approved targets, point
-   semantics `cursor < due_at <= target`, recurrence work/event caps and cursor
-   continuation. Reuse the existing production/consumption, obligation,
-   observance, route/season and NPC/faction laws. Qualify chunk equivalence,
-   exhausted inputs, timed trade and causal limits. Extend positive-time travel
-   and multi-place local cursors together; do not merely delete the guards.
-2. **08C — parallel window/candidate preparation.** Validate all included and
-   excluded Experiences, start offsets and dependencies, calculate maximum end
-   rather than sum, interleave recorded results and due effects with stable ties.
-   Add bounded resumable candidate batches/Oban workers. No wall-date catch-up,
-   rerolls, model merges or partial published caches.
-3. **08D — review, correction/exclusion and atomic timed publication.** Preview
-   affected people/resources/obligations/calendar, bind target/base/manifest,
-   preserve original outcomes and GM reasons, quarantine excluded rewards and
-   release only validated owned claims. Include all-excluded/no-automatic-time
-   cases, outbox/status/calendar commits, restart and stale-confirmation tests.
-4. Complete the day-100 → day-103 collision journey. This slice proves that an
-   independent two-hour courier can finish while the group remains paused, with
-   published time and claims unchanged. It does **not** yet prove their combined
-   day-103 publication or supply consequence. Those are required remaining gates.
+Preserve Phase 07 transfer/standing/publication race/recovery and Phase 03/04
+clock/deadline/serialization tests; final precommit runs them all. Meaningful red
+tests caught absent commands, paid-action due-work rejection and the old positive-
+time footprint restriction. A committed-connection test caught missing teardown
+for the new table; cleanup now removes only its own jobs/preparation before its
+window/user. The leftover generated test fixture was removed, not user data.
 
-Next run: inspect this uncommitted diff, run the focused command above plus
-`test/genesis/persistence/history_lifecycle_test.exs`,
-`test/genesis/engine/clock_test.exs`, and the Phase 07 transfer/incorporation/
-global-standing race/recovery suites before extending ownership or time.
-Preserve companion trip accounting, identity references, exact stock flows,
-format-2 compatibility, format-3 declarations and publication fences.
-Run `mix precommit` at the next handoff. Phase 09 remains not started.
+The day-100 → day-103 test includes a paid action, three weekly gatherings/pauses,
+three local days, a parallel two-hour courier, a claimed-place/NPC conflict,
+three dated supply events, a backward UTC jump, publication retry and a new
+adventure reading the resulting stock. Separate cross-zone condition/trade
+conflicts require review. Five publication crash stages cover two places; failed
+preparation batches and World restart resume the saved cursor. Native tests cover
+decision → prepare → impact → confirm → publish and unauthorized-user denial.
+
+Implementation closeout `mix precommit`: **393 passed**, seed **52596**, 66.9 seconds. This includes
+the full suite, warnings-as-errors, format, strict Credo, dependency audits,
+usage-rule sync, compile-connected xref, security and docs checks. The first full
+run identified two obsolete 08A expectations; the affected files passed 5 tests
+(seed 414717), then the entire gate was refreshed. The injected-crash tests may
+log a database client disconnect; they passed their recovery assertions.
+
+Separate `MIX_ENV=test mix dialyzer`: passed, 0 errors/skips. `mix assets.build`:
+passed. `git diff --check`: clean. Migration applied in test and development.
+The existing development server was left running; **restart it before manual use**.
+No Browser QA was performed, following the user's explicit deferral. The Elixir
+validation funnel guided focused red/green checks and the complete handoff gate.
+Remote main was reverified at `7dbf1b5`; its CI result covers the published 08A/CI
+repair commits, **not the Phase 08 completion commit**. Check that commit's own
+GitHub Actions run for remote validation.
+
+Publication gate refresh: `mix precommit` passed **393 tests**, seed **47672**,
+67.9 seconds, before staging the Phase 08 completion commit.

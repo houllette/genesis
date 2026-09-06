@@ -462,6 +462,19 @@ defmodule GenesisWeb.WorkspaceComponents do
                 label="Participating characters (optional)"
                 options={@actor_options}
               />
+              <details>
+                <summary class="text-link">Later start in this window</summary>
+                <.input
+                  field={@experience_form[:start_offset]}
+                  type="number"
+                  min="0"
+                  max="31622400"
+                  label="Start offset from published world time (seconds)"
+                />
+                <p class="helper-text">
+                  This is not extra play duration. Due work before this start is prepared locally; shared time stays unchanged.
+                </p>
+              </details>
               <p class="helper-text">
                 A draft holds no claims. Starting pins the published checkpoint and claims this place, its people and items. No wall time becomes fictional time.
               </p>

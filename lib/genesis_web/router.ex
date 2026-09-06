@@ -69,6 +69,7 @@ defmodule GenesisWeb.Router do
       live "/worlds/:world_id/experiences/:experience_id/resources", SettlementLive, :run
       live "/worlds/:world_id/experiences/:experience_id/travel", TravelLive, :index
       live "/worlds/:world_id/experiences/:experience_id/review", ReviewLive, :index
+      live "/worlds/:world_id/time", TimeLive, :index
       live "/invitations/:token", InvitationLive, :accept
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email

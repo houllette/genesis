@@ -4,7 +4,7 @@ defmodule Genesis.WorldFixtures do
   alias Genesis.Campaigns
   alias Genesis.Core.Scope
   alias Genesis.Experiences
-  alias Genesis.Persistence.{Bootstrap, Snapshot}
+  alias Genesis.Persistence.{Bootstrap, Snapshot, Tx}
   alias Genesis.{Repo, SceneFixtures, Systems, Worlds}
   import Genesis.AccountsFixtures
 
@@ -28,6 +28,14 @@ defmodule Genesis.WorldFixtures do
       Worlds.create_world(owner, %{"name" => "Ashfall", "ruleset" => "fantasy_demo"}, "world",
         bundle: data
       )
+
+    world =
+      if Keyword.has_key?(opts, :initial_time),
+        do:
+          Tx.update!(world, %{
+            fictional_time: Keyword.fetch!(opts, :initial_time)
+          }),
+        else: world
 
     seed =
       if data["local"],
@@ -89,7 +97,8 @@ defmodule Genesis.WorldFixtures do
         %{
           "name" => Keyword.get(opts, :name, "Bridge dispute"),
           "zone_id" => "bridge",
-          "participants" => Keyword.get(opts, :participants, ["mara"])
+          "participants" => Keyword.get(opts, :participants, ["mara"]),
+          "start_offset" => Keyword.get(opts, :start_offset, 0)
         },
         Keyword.get(opts, :request_id, "experience")
       )

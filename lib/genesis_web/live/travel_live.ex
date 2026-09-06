@@ -1,6 +1,7 @@
 defmodule GenesisWeb.TravelLive do
   use GenesisWeb, :live_view
   alias Genesis.Content
+  alias Genesis.Engine.Runtime
   alias Genesis.{Experiences, Travel, Workspace, WorldNetwork, Worlds}
 
   @impl true
@@ -67,7 +68,47 @@ defmodule GenesisWeb.TravelLive do
   end
 
   def handle_event("cancel", _params, socket), do: {:noreply, assign(socket, :pending, nil)}
+
+  def handle_event("admit-place", %{"place" => %{"zone_id" => zone}}, socket) do
+    time_command(socket, {:admit_place, socket.assigns.experience_id, zone})
+  end
+
+  def handle_event("catch-up", %{"zone" => zone, "revision" => revision}, socket)
+      when is_binary(revision) do
+    case Integer.parse(revision) do
+      {number, ""} ->
+        time_command(
+          socket,
+          {:scene_time, socket.assigns.experience_id, zone,
+           %{
+             "unit" => "second",
+             "value" => 0,
+             "reason" => "Catch this visited place up to the adventure cursor"
+           }, number, "catch-up-#{zone}-#{number}"}
+        )
+
+      _ ->
+        failure(socket, :unavailable)
+    end
+  end
+
   def handle_event(_event, _params, socket), do: failure(socket, :unavailable)
+
+  defp time_command(socket, command) do
+    case Runtime.call(socket.assigns.current_scope, socket.assigns.world_id, command) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(pending: nil)
+         |> load()
+         |> put_flash(:info, "Place preparation saved. Review travel again.")}
+
+      {:error, reason} ->
+        failure(socket, reason)
+    end
+  catch
+    :exit, _ -> failure(socket, :transfer_interrupted)
+  end
 
   @impl true
   def handle_info({:world_changed, world, _cursor}, %{assigns: %{world_id: world}} = socket),
@@ -127,6 +168,8 @@ defmodule GenesisWeb.TravelLive do
           %{
             id: scene.zone_id,
             name: scene.name,
+            revision: scene.revision,
+            elapsed: scene.elapsed,
             actors: Enum.map_join(scene.actors, ", ", & &1.name),
             holdings: Enum.map_join(scene.items, ", ", &"#{&1.quantity} × #{&1.name}")
           }
@@ -198,7 +241,7 @@ defmodule GenesisWeb.TravelLive do
 
   defp message(:time_reconciliation_unavailable),
     do:
-      "Travel currently requires zero elapsed fictional time in every visited place. Time reconciliation comes later."
+      "Admit the destination and catch both places up to the adventure's current time, then review travel again. No journey duration is charged by catch-up."
 
   defp message(_reason),
     do:
@@ -216,9 +259,25 @@ defmodule GenesisWeb.TravelLive do
           </h1>
         </header>
         <aside id="travel-boundary" class="notice">
-          Your bound participant and every eligible follower move together with their inventories. A trip consumes one step of each companion's agreement. Relationships remain saved after separation. Fictional time remains unchanged in this phase.
-          Adding a visited place keeps it claimed by this Experience, even after returning or interrupted travel. Review all visited places together before publishing; the current review supports one zero-duration Experience per window.
+          Your bound participant and every eligible follower move together with their inventories. A trip consumes one step of each companion's agreement. Record journey duration explicitly as scene time; movement itself adds no duration.
+          Adding a visited place keeps it claimed by this Experience, even after returning or interrupted travel. Review all visited places together before publishing the window. After time has passed, admit the destination and catch both places up before reviewing travel. Catch-up does not charge elapsed adventure time twice.
         </aside>
+        <details :if={@experience.status == "active"} id="travel-time-tools" class="workspace-panel">
+          <summary class="text-link">Prepare another place at the adventure's current time</summary>
+          <.form for={to_form(%{}, as: :place)} id="admit-place-form" phx-submit="admit-place">
+            <.input
+              name="place[zone_id]"
+              value=""
+              type="select"
+              label="Place to claim"
+              options={@destination_options}
+            />
+            <button id="admit-place" class="secondary-button">Admit place to this adventure</button>
+          </.form>
+          <p>
+            Admission holds this place's people and resources until window review. Another adventure's claim blocks admission.
+          </p>
+        </details>
         <.form
           :if={@experience.status == "active"}
           for={@travel_form}
@@ -299,6 +358,15 @@ defmodule GenesisWeb.TravelLive do
           <div id="travel-places" phx-update="stream" class="grid gap-4 md:grid-cols-2">
             <article :for={{id, place} <- @streams.places} id={id} class="surface-card">
               <h3>{place.name}</h3>
+              <p>Local elapsed time: {place.elapsed}s</p>
+              <button
+                :if={@experience.status == "active"}
+                id={"catch-up-#{place.id}"}
+                phx-click="catch-up"
+                phx-value-zone={place.id}
+                phx-value-revision={place.revision}
+                class="secondary-button"
+              >Catch up to adventure time</button>
               <p class="mt-2 text-sm">
                 Present: {if place.actors == "", do: "Nobody", else: place.actors}
               </p>

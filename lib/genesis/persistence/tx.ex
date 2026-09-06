@@ -76,6 +76,11 @@ defmodule Genesis.Persistence.Tx do
         remember_record(world, user, key, request, payload, schema, fun)
 
       {:ok, fields} ->
+        fields =
+          if schema == Genesis.Persistence.Experience,
+            do: Map.put_new(fields, "start_offset", 0),
+            else: fields
+
         attrs =
           Enum.map(schema.__schema__(:fields), &{&1, Map.fetch!(fields, Atom.to_string(&1))})
 

@@ -9,6 +9,7 @@ defmodule Genesis.Persistence.Control do
     Actions,
     Codec,
     Footprints,
+    LocalAdvance,
     LocalTime,
     Seals,
     Snapshot,
@@ -91,8 +92,11 @@ defmodule Genesis.Persistence.Control do
     clock = Keyword.get(opts, :clock, Clock.system())
 
     with true <- before.revision == revision and snapshot.digest == Codec.digest(before),
+         true <- match?(%{status: "open"}, Repo.get(Genesis.Persistence.Window, exp.window_id)),
          {:ok, status} <- next_status(exp.status, action),
          {:ok, next, details} <- prepare_change(world, exp, before, action),
+         {:ok, before, next} <-
+           scheduled_steps(world, exp, snapshot, before, next, operation, clock),
          {:ok, deadline} <- change_deadline(exp.deadline, action, clock) do
       {:ok, transition} = Transition.between(before, next)
       snapshot = Snapshots.save!(snapshot, next)
@@ -142,6 +146,24 @@ defmodule Genesis.Persistence.Control do
     end
   end
 
+  defp scheduled_steps(
+         world,
+         exp,
+         snapshot,
+         before,
+         next,
+         %{action: {:elapse, _}, user: user},
+         clock
+       ) do
+    with {:ok, current, next, steps} <- LocalAdvance.prepare(world, exp, before, next.time.value) do
+      LocalAdvance.save!(world, exp, snapshot, steps, user, clock)
+      {:ok, current, next}
+    end
+  end
+
+  defp scheduled_steps(_world, _exp, _snapshot, before, next, _operation, _clock),
+    do: {:ok, before, next}
+
   defp next_status("active", :pause), do: {:ok, "paused"}
   defp next_status("paused", :resume), do: {:ok, "active"}
   defp next_status("active", {:elapse, _}), do: {:ok, "active"}
@@ -169,14 +191,16 @@ defmodule Genesis.Persistence.Control do
   defp prepare_change(world, exp, before, {:elapse, %{"reason" => reason} = amount})
        when map_size(amount) == 3 do
     with true <- TimeRules.reason?(reason),
+         {:ok, summary} <- LocalTime.summary(exp),
          {:ok, seconds} <-
            Calendar.duration(
-             before.time,
+             %{before.time | value: before.time.value + summary.elapsed_seconds - before.elapsed},
              Map.delete(amount, "reason"),
              world.calendar
            ),
-         {:ok, next} <- TimeRules.elapse(before, seconds),
-         :ok <- LocalTime.admit(exp, before, next) do
+         {:ok, next} <-
+           TimeRules.elapse(before, summary.elapsed_seconds - before.elapsed + seconds),
+         :ok <- LocalTime.admit(exp, before, next, true) do
       {:ok, next,
        %{
          "reason" => reason,
