@@ -67,7 +67,7 @@ defmodule Genesis.MixProject do
        depth: 1},
       {:daisyui,
        github: "saadeghi/daisyui",
-       tag: "v5.7.28",
+       tag: "v5.7.38",
        sparse: "packages/bundle",
        app: false,
        compile: false,
